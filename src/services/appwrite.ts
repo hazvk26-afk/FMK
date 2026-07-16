@@ -4,7 +4,7 @@ const client = new Client();
 
 const endpoint = import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1';
 const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID || 'fmk-grados';
-const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID || 'fmk_db';
+const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID || 'FMK2026';
 
 client
   .setEndpoint(endpoint)
