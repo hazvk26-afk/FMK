@@ -17,14 +17,16 @@ export const Topbar: React.FC<TopbarProps> = ({
   onLogout,
 }) => {
   const sectionTitles: { [key: string]: string } = {
-    dashboard: 'FMK - Dashboard',
-    validator: 'FMK - Sistema de Grados',
-    exams: 'FMK - Estructura de Exámenes',
-    enrollment: 'FMK - Inscripción de Exámenes',
+    dashboard: 'FMK - Inicio (Aspirante)',
+    validator: 'FMK - Validador de Requisitos',
+    enrollment: 'FMK - Mis Inscripciones',
     katas: 'FMK - Biblioteca de Katas',
-    fees: 'FMK - Tasas Federativas',
+    fees: 'FMK - Mis Tasas y Pagos',
     history: 'FMK - Historial Técnico',
-    admin: 'FMK - Panel de Administración',
+    admin_dashboard: 'FMK - Panel de Dirección',
+    admin_enrollments: 'FMK - Aprobación de Solicitudes',
+    admin_exams: 'FMK - Convocar Examen Oficial',
+    admin_rules: 'FMK - Editor de Normativas',
   };
 
   const title = sectionTitles[currentSection] || 'FMK - Sistema de Grados';
@@ -36,7 +38,6 @@ export const Topbar: React.FC<TopbarProps> = ({
       </div>
 
       <div className="flex items-center gap-lg">
-        {/* Dynamic session information and role simulations */}
         <div className="flex items-center gap-md">
           {sessionEmail && (
             <span className="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-low px-sm py-[2px] rounded border border-outline-variant">
