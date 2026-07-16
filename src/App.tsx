@@ -693,7 +693,7 @@ function App() {
   if (!sessionUser) {
     return (
       <div className="min-h-screen bg-surface flex flex-col justify-center items-center p-lg font-sans">
-        <div className="w-full max-w-md bg-white border border-outline-variant rounded-xl shadow-lg p-lg space-y-md">
+        <div className="w-full max-w-[420px] bg-white border border-outline-variant rounded-xl shadow-lg p-lg space-y-md">
           {/* Logo / Brand */}
           <div className="flex flex-col items-center gap-sm pb-md border-b border-outline-variant">
             <div className="w-12 h-12 bg-primary-container rounded flex items-center justify-center">
@@ -821,7 +821,7 @@ function App() {
         />
 
         {/* Dynamic section display */}
-        <div className="flex-1 p-lg max-w-container-max w-full mx-auto space-y-gutter">
+        <div className="flex-1 p-lg max-w-[1280px] w-full mx-auto space-y-gutter">
           
           {/* ==================== ÁREA ASPIRANTE ==================== */}
 
@@ -1076,7 +1076,7 @@ function App() {
             <section className="space-y-gutter">
               <div className="bg-white border border-outline-variant rounded-xl p-lg space-y-md">
                 <h3 className="font-headline-sm text-headline-sm text-primary font-bold">Biblioteca de Katas Oficiales</h3>
-                <div className="flex gap-md max-w-xl">
+                <div className="flex gap-md max-w-[600px]">
                   <input 
                     value={kataQuery}
                     onChange={(e) => setKataQuery(e.target.value)}
@@ -1568,7 +1568,7 @@ function App() {
             <section className="bg-white border border-outline-variant rounded-xl p-lg space-y-md">
               <h3 className="font-headline-sm text-headline-sm text-primary font-bold">Acta de Calificaciones de Exámenes (Juez)</h3>
               
-              <div className="space-y-sm max-w-xl">
+              <div className="space-y-sm max-w-[600px]">
                 <label className="font-label-md text-label-md block">Selecciona la convocatoria de examen a abrir:</label>
                 <select 
                   value={juezSelectedExamId}

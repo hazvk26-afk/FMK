@@ -307,7 +307,7 @@ export const ValidatorPanel: React.FC<ValidatorPanelProps> = ({ roleMode, userPr
       {/* Header Section */}
       <div className="mb-lg">
         <h3 className="font-headline-lg text-headline-lg text-on-surface">Validador de Requisitos</h3>
-        <p className="font-body-md text-body-md text-on-surface-variant max-w-2xl">
+        <p className="font-body-md text-body-md text-on-surface-variant max-w-[650px]">
           Herramienta interactiva para comprobar la elegibilidad del federado según la Normativa de Grados 2017.
         </p>
       </div>
@@ -319,7 +319,7 @@ export const ValidatorPanel: React.FC<ValidatorPanelProps> = ({ roleMode, userPr
             <span className="material-symbols-outlined text-sm">search</span>
             <span className="font-label-md text-label-md">BÚSQUEDA DE DEPORTISTA FEDERADO (DIRECTOR)</span>
           </div>
-          <div className="flex gap-md max-w-xl">
+          <div className="flex gap-md max-w-[600px]">
             <input 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

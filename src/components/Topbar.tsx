@@ -36,7 +36,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   const title = sectionTitles[currentSection] || 'FMK - Sistema de Grados';
 
   return (
-    <header className="sticky top-0 z-40 bg-surface border-b border-outline-variant w-full h-16 flex items-center justify-between px-lg max-w-container-max mx-auto shrink-0">
+    <header className="sticky top-0 z-40 bg-surface border-b border-outline-variant w-full h-16 flex items-center justify-between px-lg max-w-[1280px] mx-auto shrink-0">
       <div className="flex items-center gap-md">
         <h2 className="font-headline-md text-headline-md font-bold text-primary">{title}</h2>
       </div>
