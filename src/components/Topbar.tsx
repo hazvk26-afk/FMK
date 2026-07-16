@@ -23,10 +23,14 @@ export const Topbar: React.FC<TopbarProps> = ({
     katas: 'FMK - Biblioteca de Katas',
     fees: 'FMK - Mis Tasas y Pagos',
     history: 'FMK - Historial Técnico',
-    admin_dashboard: 'FMK - Panel de Dirección',
-    admin_enrollments: 'FMK - Aprobación de Solicitudes',
+    admin_dashboard: 'FMK - Directorio Oficial de Federados',
+    admin_enrollments: 'FMK - Aprobación de Solicitudes y Documentos',
     admin_exams: 'FMK - Convocar Examen Oficial',
+    admin_clubs: 'FMK - Gestión de Clubes Deportivos',
     admin_rules: 'FMK - Editor de Normativas',
+    juez_exams: 'FMK - Calificaciones y Actas de Examen',
+    system_users: 'FMK - Cuentas de Usuario y Habilitación',
+    system_docs: 'FMK - Descarga y Exportación de Expedientes',
   };
 
   const title = sectionTitles[currentSection] || 'FMK - Sistema de Grados';
@@ -45,7 +49,7 @@ export const Topbar: React.FC<TopbarProps> = ({
             </span>
           )}
 
-          {/* Simulated role switcher toggle matching stitch buttons */}
+          {/* Simulated role switcher toggle for 4 roles */}
           <div className="flex items-center border border-outline-variant rounded-full overflow-hidden bg-white text-[11px] shadow-sm shrink-0">
             <button
               onClick={() => setRoleMode('aspirante')}
@@ -66,6 +70,16 @@ export const Topbar: React.FC<TopbarProps> = ({
               }`}
             >
               Director
+            </button>
+            <button
+              onClick={() => setRoleMode('juez')}
+              className={`px-sm py-[3px] font-semibold transition-colors ${
+                roleMode === 'juez'
+                  ? 'bg-secondary text-white font-bold'
+                  : 'text-on-surface hover:bg-surface-container-low'
+              }`}
+            >
+              Juez
             </button>
             <button
               onClick={() => setRoleMode('administrador')}

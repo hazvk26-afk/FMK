@@ -23,6 +23,7 @@ export const APPWRITE_CONFIG = {
     inscripciones: 'inscripciones',
     katas: 'katas',
     pagos: 'pagos',
-    licencias_federativas: 'licencias_federativas'
+    licencias_federativas: 'licencias_federativas',
+    clubes: 'clubes'
   }
 };

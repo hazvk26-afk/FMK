@@ -4,7 +4,7 @@ import { Query, ID } from 'appwrite';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { ValidatorPanel } from './pages/ValidatorPanel';
-import type { UserRole, Profile, Examen, Inscripcion, Kata, Pago } from './types';
+import type { UserRole, Profile, Examen, Inscripcion, Kata, Pago, Club } from './types';
 
 function App() {
   const [currentSection, setCurrentSection] = useState<string>('dashboard');
@@ -21,6 +21,12 @@ function App() {
   const [authMessage, setAuthMessage] = useState<string>('Ingresa credenciales para conectar con el backend de Appwrite.');
   const [authType, setAuthType] = useState<'ok' | 'error' | ''>('');
 
+  // Admin Create User Form
+  const [adminUserFullname, setAdminUserFullname] = useState<string>('');
+  const [adminUserEmail, setAdminUserEmail] = useState<string>('');
+  const [adminUserPass, setAdminUserPass] = useState<string>('');
+  const [adminUserRole, setAdminUserRole] = useState<UserRole>('aspirante');
+
   // Appwrite Data State
   const [loadedExams, setLoadedExams] = useState<Examen[]>([]);
   const [loadedEnrollments, setLoadedEnrollments] = useState<Inscripcion[]>([]);
@@ -28,6 +34,7 @@ function App() {
   const [loadedKatas, setLoadedKatas] = useState<Kata[]>([]);
   const [loadedPayments, setLoadedPayments] = useState<Pago[]>([]);
   const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
+  const [loadedClubs, setLoadedClubs] = useState<Club[]>([]);
 
   // Wizard state for enrollment
   const [wizardStep, setWizardStep] = useState<number>(1);
@@ -42,11 +49,25 @@ function App() {
   const [newExamTribunal, setNewExamTribunal] = useState<string>('');
   const [newExamCupo, setNewExamCupo] = useState<number>(30);
 
+  // New Club Form State
+  const [newClubName, setNewClubName] = useState<string>('');
+  const [newClubSede, setNewClubSede] = useState<string>('');
+  const [newClubDirector, setNewClubDirector] = useState<string>('');
+
   // New Rule Form State (Admin)
   const [selectedRuleGrade, setSelectedRuleGrade] = useState<string>('1dan');
   const [ruleAge, setRuleAge] = useState<number>(16);
   const [ruleYears, setRuleYears] = useState<number>(1);
   const [ruleLicenses, setRuleLicenses] = useState<number>(3);
+
+  // Juez Grade State
+  const [juezSelectedExamId, setJuezSelectedExamId] = useState<string>('');
+  const [gradingKata, setGradingKata] = useState<{ [key: string]: number }>({});
+  const [gradingKumite, setGradingKumite] = useState<{ [key: string]: number }>({});
+  const [gradingStatus, setGradingStatus] = useState<{ [key: string]: string }>({});
+
+  // Document Validation State (Director)
+  const [validatedDocs, setValidatedDocs] = useState<{ [key: string]: { dni: boolean; lic: boolean } }>({});
 
   // Kata search state
   const [kataQuery, setKataQuery] = useState<string>('');
@@ -88,7 +109,7 @@ function App() {
             current_grado_id: profileDoc.current_grado_id,
             current_grado_since: profileDoc.current_grado_since,
             avatar_url: null,
-            active: profileDoc.active,
+            active: profileDoc.active ?? true,
             created_at: profileDoc.$createdAt,
             updated_at: profileDoc.$updatedAt
           };
@@ -129,18 +150,20 @@ function App() {
       setLoadedKatas([]);
       setLoadedPayments([]);
       setAllProfiles([]);
+      setLoadedClubs([]);
     }
   };
 
   const loadAppwriteData = async (userId: string) => {
     try {
-      const [examsRes, enrollmentsRes, allEnrollmentsRes, katasRes, paymentsRes, profilesRes] = await Promise.all([
+      const [examsRes, enrollmentsRes, allEnrollmentsRes, katasRes, paymentsRes, profilesRes, clubsRes] = await Promise.all([
         databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.examenes, [Query.limit(100)]).catch(() => ({ documents: [] })),
         databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.inscripciones, [Query.equal('federado_id', userId)]).catch(() => ({ documents: [] })),
         databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.inscripciones, [Query.limit(100)]).catch(() => ({ documents: [] })),
         databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.katas, [Query.limit(100)]).catch(() => ({ documents: [] })),
         databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.pagos, [Query.limit(100)]).catch(() => ({ documents: [] })),
-        databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.profiles, [Query.limit(100)]).catch(() => ({ documents: [] }))
+        databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.profiles, [Query.limit(100)]).catch(() => ({ documents: [] })),
+        databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.clubes, [Query.limit(100)]).catch(() => ({ documents: [] }))
       ]);
 
       setLoadedExams(
@@ -164,6 +187,9 @@ function App() {
         resultado: doc.resultado,
         validacion_snapshot: doc.validacion_snapshot ? JSON.parse(doc.validacion_snapshot) : null,
         fecha_inscripcion: doc.fecha_inscripcion,
+        puntuacion_kata: doc.puntuacion_kata,
+        puntuacion_kumite: doc.puntuacion_kumite,
+        juez_id: doc.juez_id,
         created_at: doc.$createdAt
       }));
       setLoadedEnrollments(mappedEnrollments);
@@ -177,6 +203,9 @@ function App() {
           resultado: doc.resultado,
           validacion_snapshot: doc.validacion_snapshot ? JSON.parse(doc.validacion_snapshot) : null,
           fecha_inscripcion: doc.fecha_inscripcion,
+          puntuacion_kata: doc.puntuacion_kata,
+          puntuacion_kumite: doc.puntuacion_kumite,
+          juez_id: doc.juez_id,
           created_at: doc.$createdAt,
           profiles: {
             full_name: doc.federado_name || doc.federado_id,
@@ -225,9 +254,19 @@ function App() {
           current_grado_id: doc.current_grado_id,
           current_grado_since: doc.current_grado_since,
           avatar_url: null,
-          active: doc.active,
+          active: doc.active ?? true,
           created_at: doc.$createdAt,
           updated_at: doc.$updatedAt
+        }))
+      );
+
+      setLoadedClubs(
+        clubsRes.documents.map((doc: any) => ({
+          id: doc.$id,
+          nombre: doc.nombre,
+          sede: doc.sede,
+          director_nombre: doc.director_nombre,
+          created_at: doc.$createdAt
         }))
       );
 
@@ -345,6 +384,18 @@ function App() {
         }).catch(() => {});
       }
 
+      const clubsData = [
+        { id: 'club_kendo', nombre: 'Club Karate San Blas', sede: 'San Blas, Madrid', director_nombre: 'Santiago Martínez' },
+        { id: 'club_kata', nombre: 'Karate Dojo Retiro', sede: 'El Retiro, Madrid', director_nombre: 'Mariana de Miguel' }
+      ];
+      for (const club of clubsData) {
+        await databases.createDocument(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.clubes, club.id, {
+          nombre: club.nombre,
+          sede: club.sede,
+          director_nombre: club.director_nombre
+        }).catch(() => {});
+      }
+
       const katasData = [
         { id: 'heian_shodan', nombre: 'Heian Shodan', grado_id: '1dan', tipo: 'obligatoria', descripcion: 'Primer kata de la serie Heian, enfatiza posturas de Zenkutsu Dachi y defensas básicas.' },
         { id: 'heian_nidan', nombre: 'Heian Nidan', grado_id: '1dan', tipo: 'obligatoria', descripcion: 'Segundo kata de la serie Heian, introduce patadas y golpes de canto de mano (Shuto Uke).' },
@@ -359,7 +410,7 @@ function App() {
         }).catch(() => {});
       }
 
-      alert('¡Base de datos sembrada con éxito en Appwrite! Grados, Requisitos, Exámenes y Katas inicializados.');
+      alert('¡Base de datos sembrada con éxito! Grados, Requisitos, Clubes, Exámenes y Katas inicializados.');
       await loadAppwriteData(sessionUser?.$id || '');
     } catch (err: any) {
       alert('Error al sembrar base de datos: ' + err.message);
@@ -381,7 +432,7 @@ function App() {
         {
           federado_id: sessionUser.$id,
           examen_id: selectedExamId,
-          estado: 'pendiente_pago',
+          estado: 'pendiente_revision',
           resultado: 'pendiente',
           validacion_snapshot: JSON.stringify({
             origen: 'appwrite_wizard',
@@ -466,29 +517,57 @@ function App() {
     }
   };
 
+  // Crear Club (Director)
+  const handleCreateClub = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newClubName || !newClubSede) {
+      alert('Rellena el nombre y la sede del club.');
+      return;
+    }
+
+    try {
+      await databases.createDocument(
+        APPWRITE_CONFIG.databaseId,
+        APPWRITE_CONFIG.collections.clubes,
+        ID.unique(),
+        {
+          nombre: newClubName,
+          sede: newClubSede,
+          director_nombre: newClubDirector || 'Pendiente'
+        }
+      );
+      alert('Club deportivo registrado con éxito.');
+      setNewClubName('');
+      setNewClubSede('');
+      setNewClubDirector('');
+      await loadAppwriteData(sessionUser.$id);
+    } catch (error: any) {
+      alert('Error registrando club: ' + error.message);
+    }
+  };
+
   // Guardar normativa
   const handleSaveRule = async (e: React.FormEvent) => {
     e.preventDefault();
     alert(`Normativa para ${selectedRuleGrade} actualizada a: Edad=${ruleAge}, Permanencia=${ruleYears} año(s), Licencias=${ruleLicenses}.`);
   };
 
-  // Aprobar inscripción (Director)
+  // Aprobar/Rechazar inscripción (Director)
   const handleApproveEnrollment = async (enrollId: string) => {
     try {
       await databases.updateDocument(
         APPWRITE_CONFIG.databaseId,
         APPWRITE_CONFIG.collections.inscripciones,
         enrollId,
-        { estado: 'aprobada', resultado: 'apto' }
+        { estado: 'aprobada', resultado: 'pendiente' }
       );
-      alert('Solicitud aprobada y marcada como APTO.');
+      alert('Solicitud de examen aprobada. El deportista ya puede ser calificado por los Jueces.');
       await loadAppwriteData(sessionUser.$id);
     } catch (error: any) {
       alert('Error: ' + error.message);
     }
   };
 
-  // Rechazar inscripción (Director)
   const handleRejectEnrollment = async (enrollId: string) => {
     try {
       await databases.updateDocument(
@@ -502,6 +581,104 @@ function App() {
     } catch (error: any) {
       alert('Error: ' + error.message);
     }
+  };
+
+  // Calificar como Juez
+  const handleJuezGrade = async (enrollId: string) => {
+    const kScore = gradingKata[enrollId] || 0.0;
+    const kuScore = gradingKumite[enrollId] || 0.0;
+    const status = gradingStatus[enrollId] || 'apto';
+
+    try {
+      await databases.updateDocument(
+        APPWRITE_CONFIG.databaseId,
+        APPWRITE_CONFIG.collections.inscripciones,
+        enrollId,
+        {
+          puntuacion_kata: kScore,
+          puntuacion_kumite: kuScore,
+          resultado: status,
+          estado: 'completada',
+          juez_id: sessionUser.$id
+        }
+      );
+      alert('Puntajes guardados con éxito en la base de datos.');
+      await loadAppwriteData(sessionUser.$id);
+    } catch (error: any) {
+      alert('Error al calificar: ' + error.message);
+    }
+  };
+
+  // Habilitar/Desactivar cuenta (Admin)
+  const handleToggleUserActive = async (profileId: string, currentActive: boolean) => {
+    try {
+      await databases.updateDocument(
+        APPWRITE_CONFIG.databaseId,
+        APPWRITE_CONFIG.collections.profiles,
+        profileId,
+        { active: !currentActive }
+      );
+      alert(`Estado de la cuenta actualizado a: ${!currentActive ? 'ACTIVA' : 'DESACTIVADA'}`);
+      await loadAppwriteData(sessionUser.$id);
+    } catch (error: any) {
+      alert('Error al actualizar cuenta: ' + error.message);
+    }
+  };
+
+  // Crear cuenta por Administrador
+  const handleAdminCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminUserEmail || !adminUserPass || !adminUserFullname) {
+      alert('Rellena todos los campos.');
+      return;
+    }
+
+    try {
+      const generatedId = ID.unique();
+      // Crear en cuenta Appwrite Auth
+      await account.create(generatedId, adminUserEmail, adminUserPass, adminUserFullname);
+      
+      // Crear en coleccion profiles
+      await databases.createDocument(
+        APPWRITE_CONFIG.databaseId,
+        APPWRITE_CONFIG.collections.profiles,
+        ID.unique(),
+        {
+          id: generatedId,
+          role: adminUserRole,
+          full_name: adminUserFullname,
+          license_number: 'LIC-' + Math.floor(10000 + Math.random() * 90000),
+          current_grado_id: 'marron',
+          current_grado_since: '2025-01-01',
+          birth_date: '2000-01-01',
+          active: true
+        }
+      );
+
+      alert(`Cuenta de ${adminUserFullname} con rol ${adminUserRole} creada con éxito.`);
+      setAdminUserEmail('');
+      setAdminUserPass('');
+      setAdminUserFullname('');
+      await loadAppwriteData(sessionUser.$id);
+    } catch (err: any) {
+      alert('Error creando usuario: ' + err.message);
+    }
+  };
+
+  // Descargar expediente Mock (Admin)
+  const handleDownloadExpediente = (fullname: string) => {
+    alert(`Preparando y descargando el expediente completo de ${fullname} (DNI, Licencia, Pago y Certificados) en un archivo ZIP...`);
+  };
+
+  // Validar documentos individuales (Director)
+  const handleValidateDoc = (enrollId: string, docType: 'dni' | 'lic', status: boolean) => {
+    const current = validatedDocs[enrollId] || { dni: false, lic: false };
+    const updated = { ...current, [docType]: status };
+    setValidatedDocs({
+      ...validatedDocs,
+      [enrollId]: updated
+    });
+    alert(`Documento (${docType.toUpperCase()}) marcado como ${status ? 'VÁLIDO' : 'RECHAZADO'}`);
   };
 
   // Filtrado de Katas
@@ -593,6 +770,7 @@ function App() {
                 >
                   <option value="aspirante">Aspirante (Deportista)</option>
                   <option value="director">Director (Federativo)</option>
+                  <option value="juez">Juez (Tribunal Calificador)</option>
                   <option value="administrador">Administrador (Gestor de Sistemas)</option>
                 </select>
               </div>
@@ -677,6 +855,11 @@ function App() {
                     <p className="font-body-md text-body-md text-on-surface-variant">Licencia: <strong>{userProfile.license_number}</strong></p>
                     <p className="font-body-md text-body-md text-on-surface-variant">DNI/NIE: {userProfile.dni_nie || 'Pendiente registrar'}</p>
                     <p className="font-body-md text-body-md text-on-surface-variant">Rol de Perfil: <strong className="uppercase">{userProfile.role}</strong></p>
+                    <p className="font-body-md text-body-md text-on-surface-variant">Estado Cuenta: 
+                      <span className={`ml-sm px-sm py-[2px] rounded text-[10px] font-bold ${userProfile.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {userProfile.active ? 'ACTIVO' : 'DESACTIVADO'}
+                      </span>
+                    </p>
                   </div>
                   
                   <div className="bg-surface-container-low border border-outline-variant p-lg rounded-xl space-y-sm">
@@ -775,7 +958,7 @@ function App() {
                       <select 
                         value={selectedExamId}
                         onChange={(e) => setSelectedExamId(e.target.value)}
-                        className="w-full bg-white border border-outline-variant p-md rounded text-xs font-semibold"
+                        className="w-full bg-white border border-outline-variant p-md rounded text-xs font-semibold focus:outline-none"
                       >
                         <option value="">-- Selecciona Convocatoria --</option>
                         {loadedExams.map(exam => (
@@ -845,6 +1028,7 @@ function App() {
                         <th className="p-md">Convocatoria</th>
                         <th className="p-md">Estado Solicitud</th>
                         <th className="p-md">Resultado Examen</th>
+                        <th className="p-md">Calificaciones</th>
                         <th className="p-md">Fecha Solicitud</th>
                       </tr>
                     </thead>
@@ -859,16 +1043,25 @@ function App() {
                               </span>
                             </td>
                             <td className="p-md">
-                              <span className="px-sm py-[2px] rounded-full text-[9px] font-bold uppercase bg-neutral-100 text-neutral-700">
+                              <span className={`px-sm py-[2px] rounded-full text-[9px] font-bold uppercase ${enroll.resultado === 'apto' ? 'bg-green-100 text-green-700' : enroll.resultado === 'no_apto' ? 'bg-red-100 text-red-700' : 'bg-neutral-100 text-neutral-700'}`}>
                                 {enroll.resultado || 'pendiente'}
                               </span>
+                            </td>
+                            <td className="p-md">
+                              {enroll.puntuacion_kata !== undefined ? (
+                                <span className="font-mono text-[10px]">
+                                  KATA: {enroll.puntuacion_kata} | KUMITE: {enroll.puntuacion_kumite}
+                                </span>
+                              ) : (
+                                <span className="italic text-on-surface-variant">Sin puntuar</span>
+                              )}
                             </td>
                             <td className="p-md">{new Date(enroll.fecha_inscripcion || enroll.created_at).toLocaleDateString('es-ES')}</td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={4} className="p-md text-center">No tienes inscripciones guardadas aún.</td>
+                          <td colSpan={5} className="p-md text-center">No tienes inscripciones guardadas aún.</td>
                         </tr>
                       )}
                     </tbody>
@@ -894,7 +1087,7 @@ function App() {
                   <select 
                     value={selectedKataGrade}
                     onChange={(e) => setSelectedKataGrade(e.target.value)}
-                    className="bg-white border border-outline-variant p-sm rounded text-xs font-semibold"
+                    className="bg-white border border-outline-variant p-sm rounded text-xs font-semibold focus:outline-none"
                   >
                     <option value="all">Todos los grados</option>
                     <option value="1dan">1º DAN</option>
@@ -1012,10 +1205,10 @@ function App() {
 
           {/* ==================== ÁREA DIRECCIÓN / ADMIN ==================== */}
 
-          {/* 7. PANEL DE DIRECCIÓN */}
+          {/* 7. PANEL DE DIRECCIÓN - Directorio de federados */}
           {currentSection === 'admin_dashboard' && (roleMode === 'director' || roleMode === 'administrador') && (
             <section className="space-y-gutter">
-              {/* Seeding & Administration utility row */}
+              {/* Seeding row */}
               <div className="bg-red-50 border border-red-200 rounded-xl p-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
                 <div>
                   <h3 className="font-headline-sm text-headline-sm text-error font-bold">Consola del Administrador de Sistemas</h3>
@@ -1028,37 +1221,11 @@ function App() {
                   className="bg-primary text-white font-bold text-xs px-lg py-md rounded-lg hover:bg-primary-container transition-all flex items-center gap-sm shrink-0 shadow"
                 >
                   <span className="material-symbols-outlined text-sm">database</span>
-                  Sembrar Base de Datos (Grados, Requisitos, Katas, Exámenes)
+                  Sembrar Base de Datos (Grados, Requisitos, Clubes, Exámenes)
                 </button>
               </div>
 
-              {/* KPIs Dirección */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-md">
-                <div className="bg-white border border-outline-variant rounded-xl p-md flex flex-col justify-between min-h-[110px]">
-                  <span className="font-label-md text-label-md text-on-surface-variant">FEDERADOS TOTALES</span>
-                  <strong className="text-2xl font-extrabold text-primary">{allProfiles.length}</strong>
-                  <small className="text-green-700 text-[10px] font-bold">Todos los clubes activos</small>
-                </div>
-                <div className="bg-white border border-outline-variant rounded-xl p-md flex flex-col justify-between min-h-[110px]">
-                  <span className="font-label-md text-label-md text-on-surface-variant">SOLICITUDES PENDIENTES</span>
-                  <strong className="text-2xl font-extrabold text-primary">
-                    {loadedAdminEnrollments.filter(e => e.estado === 'pendiente_revision' || e.estado === 'pendiente_pago').length}
-                  </strong>
-                  <small className="text-amber-700 text-[10px] font-bold">Requieren tu atención</small>
-                </div>
-                <div className="bg-white border border-outline-variant rounded-xl p-md flex flex-col justify-between min-h-[110px]">
-                  <span className="font-label-md text-label-md text-on-surface-variant">TASAS CONCILIADAS</span>
-                  <strong className="text-2xl font-extrabold text-primary">100%</strong>
-                  <small className="text-green-700 text-[10px] font-bold">Pasarela Appwrite OK</small>
-                </div>
-                <div className="bg-white border border-outline-variant rounded-xl p-md flex flex-col justify-between min-h-[110px]">
-                  <span className="font-label-md text-label-md text-on-surface-variant">AUDITORÍAS LOGS RLS</span>
-                  <strong className="text-2xl font-extrabold text-primary">Activo</strong>
-                  <small className="text-on-surface-variant opacity-70 text-[10px]">Logs inmutables</small>
-                </div>
-              </div>
-
-              {/* Director's search / Audit directory */}
+              {/* Directory search */}
               <div className="bg-white border border-outline-variant rounded-xl p-lg space-y-md">
                 <h3 className="font-headline-sm text-headline-sm text-primary font-bold">Directorio Oficial de Federados</h3>
                 <div className="overflow-x-auto">
@@ -1091,10 +1258,10 @@ function App() {
             </section>
           )}
 
-          {/* 8. APROBACIONES (Director) */}
+          {/* 8. APROBACIONES & VALIDADOR DE DOCUMENTOS (Director) */}
           {currentSection === 'admin_enrollments' && (roleMode === 'director' || roleMode === 'administrador') && (
             <section className="bg-white border border-outline-variant rounded-xl p-lg space-y-md">
-              <h3 className="font-headline-sm text-headline-sm text-primary font-bold">Aprobación de Solicitudes de Examen</h3>
+              <h3 className="font-headline-sm text-headline-sm text-primary font-bold">Aprobación de Solicitudes y Validación de Documentos</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
@@ -1102,38 +1269,61 @@ function App() {
                       <th className="p-md">Federado</th>
                       <th className="p-md">Convocatoria</th>
                       <th className="p-md">Estado Solicitud</th>
-                      <th className="p-md">Resultado</th>
-                      <th className="p-md">Acciones</th>
+                      <th className="p-md">Validación Documental (DNI y Licencia)</th>
+                      <th className="p-md">Acción Final</th>
                     </tr>
                   </thead>
                   <tbody className="font-body-md text-body-md divide-y divide-outline-variant">
                     {loadedAdminEnrollments.length > 0 ? (
-                      loadedAdminEnrollments.map((enroll) => (
-                        <tr key={enroll.id} className="hover:bg-surface-container-lowest transition-colors">
-                          <td className="p-md font-semibold">{enroll.profiles?.full_name || enroll.federado_id}</td>
-                          <td className="p-md font-bold">{enroll.examen_id}</td>
-                          <td className="p-md">
-                            <span className="px-sm py-[2px] rounded-full text-[9px] font-bold uppercase bg-amber-100 text-amber-700">
-                              {enroll.estado.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="p-md font-semibold uppercase">{enroll.resultado || 'pendiente'}</td>
-                          <td className="p-md flex gap-sm">
-                            <button
-                              onClick={() => handleApproveEnrollment(enroll.id)}
-                              className="bg-green-600 text-white text-[10px] font-bold px-sm py-1 rounded hover:bg-green-700"
-                            >
-                              Aprobar
-                            </button>
-                            <button
-                              onClick={() => handleRejectEnrollment(enroll.id)}
-                              className="bg-error text-white text-[10px] font-bold px-sm py-1 rounded hover:bg-red-700"
-                            >
-                              Rechazar
-                            </button>
-                          </td>
-                        </tr>
-                      ))
+                      loadedAdminEnrollments.map((enroll) => {
+                        const status = validatedDocs[enroll.id] || { dni: false, lic: false };
+                        return (
+                          <tr key={enroll.id} className="hover:bg-surface-container-lowest transition-colors">
+                            <td className="p-md font-semibold">{enroll.profiles?.full_name || enroll.federado_id}</td>
+                            <td className="p-md font-bold">{enroll.examen_id}</td>
+                            <td className="p-md">
+                              <span className="px-sm py-[2px] rounded-full text-[9px] font-bold uppercase bg-amber-100 text-amber-700">
+                                {enroll.estado.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="p-md space-y-sm">
+                              <div className="flex items-center justify-between gap-sm bg-neutral-50 border p-sm rounded max-w-[280px]">
+                                <span className="font-medium text-[10px]">Copia DNI:</span>
+                                <div className="flex gap-xs">
+                                  <button onClick={() => handleValidateDoc(enroll.id, 'dni', true)} className={`text-[9px] font-bold px-[6px] py-[2px] rounded ${status.dni ? 'bg-green-600 text-white' : 'bg-white border border-outline'}`}>Válido</button>
+                                  <button onClick={() => handleValidateDoc(enroll.id, 'dni', false)} className={`text-[9px] font-bold px-[6px] py-[2px] rounded ${!status.dni ? 'bg-red-600 text-white' : 'bg-white border border-outline'}`}>Rechazar</button>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between gap-sm bg-neutral-50 border p-sm rounded max-w-[280px]">
+                                <span className="font-medium text-[10px]">Licencia:</span>
+                                <div className="flex gap-xs">
+                                  <button onClick={() => handleValidateDoc(enroll.id, 'lic', true)} className={`text-[9px] font-bold px-[6px] py-[2px] rounded ${status.lic ? 'bg-green-600 text-white' : 'bg-white border border-outline'}`}>Válido</button>
+                                  <button onClick={() => handleValidateDoc(enroll.id, 'lic', false)} className={`text-[9px] font-bold px-[6px] py-[2px] rounded ${!status.lic ? 'bg-red-600 text-white' : 'bg-white border border-outline'}`}>Rechazar</button>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-md space-y-xs">
+                              <button
+                                onClick={() => handleApproveEnrollment(enroll.id)}
+                                disabled={!status.dni || !status.lic}
+                                className={`w-full text-[10px] font-bold px-sm py-1 rounded transition-colors ${
+                                  status.dni && status.lic 
+                                    ? 'bg-green-600 text-white hover:bg-green-700' 
+                                    : 'bg-neutral-100 text-neutral-400 cursor-not-allowed border'
+                                }`}
+                              >
+                                Aprobar Candidato
+                              </button>
+                              <button
+                                onClick={() => handleRejectEnrollment(enroll.id)}
+                                className="w-full bg-error text-white text-[10px] font-bold px-sm py-1 rounded hover:bg-red-700"
+                              >
+                                Rechazar
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
                         <td colSpan={5} className="p-md text-center">No hay solicitudes de exámenes registradas en el sistema.</td>
@@ -1244,7 +1434,77 @@ function App() {
             </section>
           )}
 
-          {/* 10. EDITOR DE NORMATIVAS (Director) */}
+          {/* 10. GESTIÓN DE CLUBES (Director) */}
+          {currentSection === 'admin_clubs' && (roleMode === 'director' || roleMode === 'administrador') && (
+            <section className="bg-white border border-outline-variant rounded-xl p-lg space-y-md">
+              <h3 className="font-headline-sm text-headline-sm text-primary font-bold">Gestión de Clubes Deportivos Oficiales</h3>
+              <form onSubmit={handleCreateClub} className="grid grid-cols-1 md:grid-cols-4 gap-md items-end">
+                <div className="space-y-1">
+                  <label className="font-label-md text-label-md">Nombre del Club</label>
+                  <input 
+                    value={newClubName}
+                    onChange={(e) => setNewClubName(e.target.value)}
+                    type="text" 
+                    className="w-full bg-white border border-outline-variant p-sm rounded text-xs focus:outline-none" 
+                    placeholder="e.g. Club Karate San Blas" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-label-md text-label-md">Sede / Ubicación</label>
+                  <input 
+                    value={newClubSede}
+                    onChange={(e) => setNewClubSede(e.target.value)}
+                    type="text" 
+                    className="w-full bg-white border border-outline-variant p-sm rounded text-xs focus:outline-none" 
+                    placeholder="e.g. Calle Alcalá 120, Madrid" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-label-md text-label-md">Nombre Director/Delegado</label>
+                  <input 
+                    value={newClubDirector}
+                    onChange={(e) => setNewClubDirector(e.target.value)}
+                    type="text" 
+                    className="w-full bg-white border border-outline-variant p-sm rounded text-xs focus:outline-none" 
+                    placeholder="e.g. Santiago Martínez" 
+                  />
+                </div>
+                <button 
+                  type="submit" 
+                  className="bg-primary text-white font-bold text-xs py-sm px-md rounded-lg hover:bg-primary-container transition-all"
+                >
+                  Registrar Club
+                </button>
+              </form>
+
+              {/* List of Clubs */}
+              <div className="pt-md border-t border-outline-variant/30 space-y-sm">
+                <h4 className="font-headline-sm text-headline-sm text-primary font-bold">Clubes Deportivos Adheridos</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-surface-container text-on-surface font-label-md text-label-md border-b border-outline-variant">
+                        <th className="p-md">Nombre del Club</th>
+                        <th className="p-md">Sede / Municipio</th>
+                        <th className="p-md">Director</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-body-md text-body-md divide-y divide-outline-variant">
+                      {loadedClubs.map(club => (
+                        <tr key={club.id}>
+                          <td className="p-md font-semibold text-primary">{club.nombre}</td>
+                          <td className="p-md">{club.sede}</td>
+                          <td className="p-md font-semibold">{club.director_nombre}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* 11. CONFIGURADOR DE REQUISITOS (Director) */}
           {currentSection === 'admin_rules' && (roleMode === 'director' || roleMode === 'administrador') && (
             <section className="bg-white border border-outline-variant rounded-xl p-lg space-y-md">
               <h3 className="font-headline-sm text-headline-sm text-primary font-bold">Configurador de Requisitos por Grado (Normativa)</h3>
@@ -1298,6 +1558,252 @@ function App() {
                   </button>
                 </div>
               </form>
+            </section>
+          )}
+
+          {/* ==================== ÁREA JUECES ==================== */}
+
+          {/* 12. CALIFICAR EXÁMENES (Juez) */}
+          {currentSection === 'juez_exams' && (roleMode === 'juez' || roleMode === 'administrador') && (
+            <section className="bg-white border border-outline-variant rounded-xl p-lg space-y-md">
+              <h3 className="font-headline-sm text-headline-sm text-primary font-bold">Acta de Calificaciones de Exámenes (Juez)</h3>
+              
+              <div className="space-y-sm max-w-xl">
+                <label className="font-label-md text-label-md block">Selecciona la convocatoria de examen a abrir:</label>
+                <select 
+                  value={juezSelectedExamId}
+                  onChange={(e) => setJuezSelectedExamId(e.target.value)}
+                  className="w-full bg-white border border-outline-variant p-md rounded text-xs font-semibold focus:outline-none"
+                >
+                  <option value="">-- Seleccionar Examen Abierto --</option>
+                  {loadedExams.map(ex => (
+                    <option key={ex.id} value={ex.id}>
+                      {ex.grado_objetivo_id} - Sede: {ex.sede} (Fecha: {new Date(ex.fecha).toLocaleDateString('es-ES')})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {juezSelectedExamId && (
+                <div className="pt-md space-y-md">
+                  <h4 className="font-headline-sm text-headline-sm text-primary font-bold">Aspirantes Inscritos en este Examen</h4>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-surface-container text-on-surface font-label-md text-label-md border-b border-outline-variant">
+                          <th className="p-md">Aspirante</th>
+                          <th className="p-md">Puntaje KATA (0-10)</th>
+                          <th className="p-md">Puntaje KUMITE (0-10)</th>
+                          <th className="p-md">Decisión Final</th>
+                          <th className="p-md">Guardar</th>
+                        </tr>
+                      </thead>
+                      <tbody className="font-body-md text-body-md divide-y divide-outline-variant">
+                        {loadedAdminEnrollments
+                          .filter(enroll => enroll.examen_id === juezSelectedExamId && enroll.estado === 'aprobada')
+                          .map((enroll) => (
+                            <tr key={enroll.id}>
+                              <td className="p-md font-semibold">{enroll.profiles?.full_name || enroll.federado_id}</td>
+                              <td className="p-md">
+                                <input 
+                                  value={gradingKata[enroll.id] || ''}
+                                  onChange={(e) => setGradingKata({ ...gradingKata, [enroll.id]: Number(e.target.value) })}
+                                  type="number" 
+                                  step="0.1" 
+                                  min="0" 
+                                  max="10" 
+                                  className="w-20 bg-white border border-outline-variant p-sm rounded text-xs focus:outline-none"
+                                  placeholder="e.g. 7.5"
+                                />
+                              </td>
+                              <td className="p-md">
+                                <input 
+                                  value={gradingKumite[enroll.id] || ''}
+                                  onChange={(e) => setGradingKumite({ ...gradingKumite, [enroll.id]: Number(e.target.value) })}
+                                  type="number" 
+                                  step="0.1" 
+                                  min="0" 
+                                  max="10" 
+                                  className="w-20 bg-white border border-outline-variant p-sm rounded text-xs focus:outline-none"
+                                  placeholder="e.g. 6.8"
+                                />
+                              </td>
+                              <td className="p-md">
+                                <select
+                                  value={gradingStatus[enroll.id] || 'apto'}
+                                  onChange={(e) => setGradingStatus({ ...gradingStatus, [enroll.id]: e.target.value })}
+                                  className="bg-white border border-outline-variant p-sm rounded text-xs font-semibold focus:outline-none"
+                                >
+                                  <option value="apto">Apto</option>
+                                  <option value="no_apto">No Apto</option>
+                                  <option value="pendiente">Pendiente</option>
+                                </select>
+                              </td>
+                              <td className="p-md">
+                                <button
+                                  onClick={() => handleJuezGrade(enroll.id)}
+                                  className="bg-blue-600 text-white font-bold text-[10px] px-sm py-1 rounded hover:bg-blue-700"
+                                >
+                                  Calificar
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        {loadedAdminEnrollments.filter(enroll => enroll.examen_id === juezSelectedExamId && enroll.estado === 'aprobada').length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="p-md text-center">No hay aspirantes aprobados pendientes de evaluación en este examen.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ==================== ÁREA ADMINISTRACIÓN ==================== */}
+
+          {/* 13. CUENTAS USUARIOS (Admin) */}
+          {currentSection === 'system_users' && roleMode === 'administrador' && (
+            <section className="space-y-gutter">
+              {/* Form to create accounts */}
+              <div className="bg-white border border-outline-variant rounded-xl p-lg space-y-md">
+                <h3 className="font-headline-sm text-headline-sm text-primary font-bold">Crear Nueva Cuenta Federativa</h3>
+                <form onSubmit={handleAdminCreateUser} className="grid grid-cols-1 md:grid-cols-4 gap-md items-end">
+                  <div className="space-y-1">
+                    <label className="font-label-md text-label-md">Nombre y Apellidos</label>
+                    <input 
+                      value={adminUserFullname}
+                      onChange={(e) => setAdminUserFullname(e.target.value)}
+                      type="text" 
+                      className="w-full bg-white border border-outline-variant p-sm rounded text-xs focus:outline-none" 
+                      placeholder="e.g. Manuel Nakazato" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-label-md text-label-md">Correo electrónico</label>
+                    <input 
+                      value={adminUserEmail}
+                      onChange={(e) => setAdminUserEmail(e.target.value)}
+                      type="email" 
+                      className="w-full bg-white border border-outline-variant p-sm rounded text-xs focus:outline-none" 
+                      placeholder="e.g. manuel@fmk.es" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-label-md text-label-md">Contraseña</label>
+                    <input 
+                      value={adminUserPass}
+                      onChange={(e) => setAdminUserPass(e.target.value)}
+                      type="password" 
+                      className="w-full bg-white border border-outline-variant p-sm rounded text-xs focus:outline-none" 
+                      placeholder="Mínimo 8 caracteres" 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-label-md text-label-md">Rol asignado</label>
+                    <select
+                      value={adminUserRole}
+                      onChange={(e) => setAdminUserRole(e.target.value as UserRole)}
+                      className="w-full bg-white border border-outline-variant p-sm rounded text-xs font-semibold focus:outline-none"
+                    >
+                      <option value="aspirante">Aspirante</option>
+                      <option value="director">Director</option>
+                      <option value="juez">Juez</option>
+                      <option value="administrador">Administrador</option>
+                    </select>
+                  </div>
+                  <div className="col-span-4 flex justify-end">
+                    <button 
+                      type="submit" 
+                      className="bg-primary text-white font-bold text-xs py-sm px-lg rounded-lg hover:bg-primary-container"
+                    >
+                      Crear Usuario
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* List of user accounts with activate/deactivate action */}
+              <div className="bg-white border border-outline-variant rounded-xl p-lg space-y-md">
+                <h3 className="font-headline-sm text-headline-sm text-primary font-bold">Listado y Habilitación de Cuentas de Usuario</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-surface-container text-on-surface font-label-md text-label-md border-b border-outline-variant">
+                        <th className="p-md">Nombre</th>
+                        <th className="p-md">Licencia</th>
+                        <th className="p-md">Rol</th>
+                        <th className="p-md">Estado</th>
+                        <th className="p-md">Acciones Cuenta</th>
+                      </tr>
+                    </thead>
+                    <tbody className="font-body-md text-body-md divide-y divide-outline-variant">
+                      {allProfiles.map(prof => (
+                        <tr key={prof.id}>
+                          <td className="p-md font-semibold">{prof.full_name}</td>
+                          <td className="p-md">{prof.license_number || 'Sin Licencia'}</td>
+                          <td className="p-md font-bold uppercase text-secondary">{prof.role}</td>
+                          <td className="p-md">
+                            <span className={`px-sm py-[2px] rounded text-[9px] font-bold ${prof.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {prof.active ? 'ACTIVA' : 'DESACTIVADA'}
+                            </span>
+                          </td>
+                          <td className="p-md">
+                            <button
+                              onClick={() => handleToggleUserActive(prof.id, prof.active)}
+                              className={`text-[9px] font-bold px-sm py-[3px] rounded transition-all ${
+                                prof.active ? 'bg-red-50 text-error hover:bg-red-100' : 'bg-green-50 text-green-700 hover:bg-green-100'
+                              }`}
+                            >
+                              {prof.active ? 'Desactivar Cuenta' : 'Activar Cuenta'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* 14. DESCARGA DOCUMENTAL (Admin) */}
+          {currentSection === 'system_docs' && roleMode === 'administrador' && (
+            <section className="bg-white border border-outline-variant rounded-xl p-lg space-y-md">
+              <h3 className="font-headline-sm text-headline-sm text-primary font-bold">Descarga y Exportación de Expedientes de Exámenes</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-surface-container text-on-surface font-label-md text-label-md border-b border-outline-variant">
+                      <th className="p-md">Candidato</th>
+                      <th className="p-md">Convocatoria</th>
+                      <th className="p-md">Estado Solicitud</th>
+                      <th className="p-md">Documentos Adjuntos</th>
+                      <th className="p-md">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-body-md text-body-md divide-y divide-outline-variant">
+                    {loadedAdminEnrollments.map(enroll => (
+                      <tr key={enroll.id}>
+                        <td className="p-md font-semibold">{enroll.profiles?.full_name || enroll.federado_id}</td>
+                        <td className="p-md font-bold">{enroll.examen_id}</td>
+                        <td className="p-md uppercase font-bold text-[9px] text-amber-700">{enroll.estado}</td>
+                        <td className="p-md font-medium italic">dni_digital.pdf, licencias_2026.pdf</td>
+                        <td className="p-md">
+                          <button
+                            onClick={() => handleDownloadExpediente(enroll.profiles?.full_name || enroll.federado_id)}
+                            className="bg-primary text-white font-bold text-[10px] px-sm py-1 rounded hover:bg-primary-container"
+                          >
+                            Descargar Expediente (ZIP)
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </section>
           )}
 

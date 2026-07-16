@@ -1,4 +1,31 @@
-export type UserRole = 'aspirante' | 'director' | 'administrador';
+export type UserRole = 'aspirante' | 'director' | 'juez' | 'administrador';
+
+export interface Club {
+  id: string;
+  nombre: string;
+  sede: string;
+  director_nombre: string;
+  created_at?: string;
+}
+
+export interface Inscripcion {
+  id: string;
+  federado_id: string;
+  examen_id: string;
+  estado: 'borrador' | 'pendiente_documentacion' | 'pendiente_pago' | 'pendiente_revision' | 'aprobada' | 'rechazada' | 'completada' | 'cancelada';
+  resultado: 'apto' | 'no_apto' | 'pendiente' | 'exento' | null;
+  validacion_snapshot: any;
+  fecha_inscripcion: string;
+  observaciones_director?: string;
+  puntuacion_kata?: number;
+  puntuacion_kumite?: number;
+  juez_id?: string;
+  created_at: string;
+  profiles?: {
+    full_name: string | null;
+    license_number: string | null;
+  };
+}
 
 export interface Profile {
   id: string;
@@ -58,21 +85,6 @@ export interface Examen {
   fecha_limite_inscripcion: string | null;
 }
 
-export interface Inscripcion {
-  id: string;
-  federado_id: string;
-  examen_id: string;
-  estado: 'borrador' | 'pendiente_documentacion' | 'pendiente_pago' | 'pendiente_revision' | 'aprobada' | 'rechazada' | 'completada' | 'cancelada';
-  resultado: 'apto' | 'no_apto' | 'pendiente' | 'exento' | null;
-  validacion_snapshot: any;
-  fecha_inscripcion: string;
-  observaciones_director?: string;
-  created_at: string;
-  profiles?: {
-    full_name: string | null;
-    license_number: string | null;
-  };
-}
 
 export interface Kata {
   id: string;
