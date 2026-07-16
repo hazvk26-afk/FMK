@@ -67,6 +67,16 @@ export const Topbar: React.FC<TopbarProps> = ({
             >
               Director
             </button>
+            <button
+              onClick={() => setRoleMode('administrador')}
+              className={`px-sm py-[3px] font-semibold transition-colors ${
+                roleMode === 'administrador'
+                  ? 'bg-secondary text-white font-bold'
+                  : 'text-on-surface hover:bg-surface-container-low'
+              }`}
+            >
+              Admin
+            </button>
           </div>
 
           {sessionEmail && (

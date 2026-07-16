@@ -67,8 +67,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, setSection, ro
           })}
         </div>
 
-        {/* ÁREA DIRECCIÓN (Solo visible para directores) */}
-        {roleMode === 'director' && (
+        {/* ÁREA DIRECCIÓN (Solo visible para directores/administradores) */}
+        {(roleMode === 'director' || roleMode === 'administrador') && (
           <div className="space-y-base pt-md border-t border-outline-variant/30">
             <span className="px-md text-[10px] font-bold text-error/60 tracking-wider uppercase block">
               ÁREA DIRECCIÓN
