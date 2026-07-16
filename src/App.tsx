@@ -17,6 +17,7 @@ function App() {
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [registerRole, setRegisterRole] = useState<UserRole>('aspirante');
+  const [registerGrade, setRegisterGrade] = useState<string>('marron');
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const [authMessage, setAuthMessage] = useState<string>('Ingresa credenciales para conectar con el backend de Appwrite.');
   const [authType, setAuthType] = useState<'ok' | 'error' | ''>('');
@@ -26,6 +27,7 @@ function App() {
   const [adminUserEmail, setAdminUserEmail] = useState<string>('');
   const [adminUserPass, setAdminUserPass] = useState<string>('');
   const [adminUserRole, setAdminUserRole] = useState<UserRole>('aspirante');
+  const [adminUserGrade, setAdminUserGrade] = useState<string>('marron');
 
   // Appwrite Data State
   const [loadedExams, setLoadedExams] = useState<Examen[]>([]);
@@ -293,7 +295,7 @@ function App() {
           role: registerRole,
           full_name: fullName || email,
           license_number: 'LIC-' + Math.floor(10000 + Math.random() * 90000),
-          current_grado_id: 'marron',
+          current_grado_id: registerRole === 'aspirante' ? registerGrade : 'marron',
           current_grado_since: '2025-01-01',
           birth_date: '2000-01-01',
           active: true
@@ -335,14 +337,19 @@ function App() {
     }
   };
 
-  // Sembrar Base de Datos
   const handleSeedDatabase = async () => {
     try {
       const gradosData = [
+        { id: 'blanco', nombre: 'Cinturón Blanco', orden: 0, tipo: 'kyu' },
+        { id: 'amarillo', nombre: 'Cinturón Amarillo', orden: 1, tipo: 'kyu' },
+        { id: 'naranja', nombre: 'Cinturón Naranja', orden: 2, tipo: 'kyu' },
+        { id: 'verde', nombre: 'Cinturón Verde', orden: 3, tipo: 'kyu' },
+        { id: 'azul', nombre: 'Cinturón Azul', orden: 4, tipo: 'kyu' },
         { id: 'marron', nombre: 'Cinturón Marrón', orden: 6, tipo: 'kyu' },
-        { id: '1dan', nombre: '1º DAN', orden: 7, tipo: 'dan' },
-        { id: '2dan', nombre: '2º DAN', orden: 8, tipo: 'dan' },
-        { id: '3dan', nombre: '3º DAN', orden: 9, tipo: 'dan' }
+        { id: '1dan', nombre: 'Cinturón Negro 1º DAN', orden: 7, tipo: 'dan' },
+        { id: '2dan', nombre: 'Cinturón Negro 2º DAN', orden: 8, tipo: 'dan' },
+        { id: '3dan', nombre: 'Cinturón Negro 3º DAN', orden: 9, tipo: 'dan' },
+        { id: '4dan', nombre: 'Cinturón Negro 4º DAN', orden: 10, tipo: 'dan' }
       ];
       for (const grade of gradosData) {
         await databases.createDocument(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.grados, grade.id, {
@@ -353,14 +360,21 @@ function App() {
       }
 
       const reqsData = [
+        { id: 'req_amarillo', grado_objetivo_id: 'amarillo', grado_previo_requerido_id: 'blanco', edad_minima: 4, permanencia_anios: 0, licencias_consecutivas_requeridas: 1, licencias_alternas_requeridas: 1, observaciones: 'Examen básico de club.' },
+        { id: 'req_naranja', grado_objetivo_id: 'naranja', grado_previo_requerido_id: 'amarillo', edad_minima: 5, permanencia_anios: 0, licencias_consecutivas_requeridas: 1, licencias_alternas_requeridas: 1, observaciones: 'Examen de club.' },
+        { id: 'req_verde', grado_objetivo_id: 'verde', grado_previo_requerido_id: 'naranja', edad_minima: 7, permanencia_anios: 0, licencias_consecutivas_requeridas: 1, licencias_alternas_requeridas: 1, observaciones: 'Examen de club.' },
+        { id: 'req_azul', grado_objetivo_id: 'azul', grado_previo_requerido_id: 'verde', edad_minima: 9, permanencia_anios: 0, licencias_consecutivas_requeridas: 1, licencias_alternas_requeridas: 1, observaciones: 'Examen de club.' },
+        { id: 'req_marron', grado_objetivo_id: 'marron', grado_previo_requerido_id: 'azul', edad_minima: 12, permanencia_anios: 0, licencias_consecutivas_requeridas: 1, licencias_alternas_requeridas: 1, observaciones: 'Examen de club.' },
         { id: 'req_1dan', grado_objetivo_id: '1dan', grado_previo_requerido_id: 'marron', edad_minima: 16, permanencia_anios: 1, licencias_consecutivas_requeridas: 3, licencias_alternas_requeridas: 4, observaciones: 'Edad cumplida el día del examen.' },
         { id: 'req_2dan', grado_objetivo_id: '2dan', grado_previo_requerido_id: '1dan', edad_minima: 18, permanencia_anios: 2, licencias_consecutivas_requeridas: 2, licencias_alternas_requeridas: 3, observaciones: 'Presentar justificante de grado anterior.' },
-        { id: 'req_3dan', grado_objetivo_id: '3dan', grado_previo_requerido_id: '2dan', edad_minima: 21, permanencia_anios: 3, licencias_consecutivas_requeridas: 3, licencias_alternas_requeridas: 4, observaciones: 'Sin observaciones.' }
+        { id: 'req_3dan', grado_objetivo_id: '3dan', grado_previo_requerido_id: '2dan', edad_minima: 21, permanencia_anios: 3, licencias_consecutivas_requeridas: 3, licencias_alternas_requeridas: 4, observaciones: 'Sin observaciones.' },
+        { id: 'req_4dan', grado_objetivo_id: '4dan', grado_previo_requerido_id: '3dan', edad_minima: 25, permanencia_anios: 4, licencias_consecutivas_requeridas: 4, licencias_alternas_requeridas: 5, observaciones: 'Examen ante tribunal de altos grados.' }
       ];
       for (const req of reqsData) {
         await databases.createDocument(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.requisitos_grado, req.id, {
           grado_objetivo_id: req.grado_objetivo_id,
           grado_previo_requerido_id: req.grado_previo_requerido_id,
+          decay: 0, // unused
           edad_minima: req.edad_minima,
           permanencia_anios: req.permanencia_anios,
           licencias_consecutivas_requeridas: req.licencias_consecutivas_requeridas,
@@ -371,7 +385,8 @@ function App() {
 
       const examsData = [
         { id: 'exam_1dan_julio', grado_objetivo_id: '1dan', fecha: '2026-07-25', sede: 'Polideportivo Central Madrid', tribunal: 'M. Nakazato (7º DAN)', cupo_maximo: 30, estado: 'abierta' },
-        { id: 'exam_2dan_agosto', grado_objetivo_id: '2dan', fecha: '2026-08-10', sede: 'Centro Tecnificación Karate', tribunal: 'P. Sanz (6º DAN)', cupo_maximo: 20, estado: 'abierta' }
+        { id: 'exam_2dan_agosto', grado_objetivo_id: '2dan', fecha: '2026-08-10', sede: 'Centro Tecnificación Karate', tribunal: 'P. Sanz (6º DAN)', cupo_maximo: 20, estado: 'abierta' },
+        { id: 'exam_3dan_septiembre', grado_objetivo_id: '3dan', fecha: '2026-09-05', sede: 'Palacio de Deportes Madrid', tribunal: 'T. Suzuki (8º DAN)', cupo_maximo: 15, estado: 'abierta' }
       ];
       for (const ex of examsData) {
         await databases.createDocument(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.examenes, ex.id, {
@@ -399,7 +414,15 @@ function App() {
       const katasData = [
         { id: 'heian_shodan', nombre: 'Heian Shodan', grado_id: '1dan', tipo: 'obligatoria', descripcion: 'Primer kata de la serie Heian, enfatiza posturas de Zenkutsu Dachi y defensas básicas.' },
         { id: 'heian_nidan', nombre: 'Heian Nidan', grado_id: '1dan', tipo: 'obligatoria', descripcion: 'Segundo kata de la serie Heian, introduce patadas y golpes de canto de mano (Shuto Uke).' },
-        { id: 'kanku_dai', nombre: 'Kanku Dai', grado_id: '2dan', tipo: 'libre', descripcion: 'Kata superior que simula la observación del cielo, introduce saltos y defensas avanzadas.' }
+        { id: 'heian_sandan', nombre: 'Heian Sandan', grado_id: '1dan', tipo: 'obligatoria', descripcion: 'Tercer kata Heian, trabaja Kiba Dachi, golpes de codo y giros cortos.' },
+        { id: 'heian_yondan', nombre: 'Heian Yondan', grado_id: '1dan', tipo: 'obligatoria', descripcion: 'Cuarto kata Heian, introduce defensas dobles y uso intensivo de patadas laterales (Yoko Geri).' },
+        { id: 'heian_godan', nombre: 'Heian Godan', grado_id: '1dan', tipo: 'obligatoria', descripcion: 'Quinto kata Heian, incluye un salto característico y defensas de nivel bajo y alto.' },
+        { id: 'bassai_dai', nombre: 'Bassai Dai', grado_id: '1dan', tipo: 'libre', descripcion: 'Kata de la penetración de la fortaleza, clásico para pase a Cinturón Negro.' },
+        { id: 'kanku_dai', nombre: 'Kanku Dai', grado_id: '2dan', tipo: 'libre', descripcion: 'Kata superior que simula la observación del cielo, introduce saltos y defensas avanzadas.' },
+        { id: 'jion', nombre: 'Jion', grado_id: '2dan', tipo: 'libre', descripcion: 'Kata tradicional de origen monástico, enfocado en técnicas firmes y directas.' },
+        { id: 'enpi', nombre: 'Enpi', grado_id: '2dan', tipo: 'libre', descripcion: 'Kata del vuelo de la golondrina, característico por sus cambios de nivel y ligereza.' },
+        { id: 'kanku_sho', nombre: 'Kanku Sho', grado_id: '3dan', tipo: 'libre', descripcion: 'Versión menor de Kanku, introduce defensas ágiles contra agarres de bastón.' },
+        { id: 'gojushiho_dai', nombre: 'Gojushiho Dai', grado_id: '4dan', tipo: 'libre', descripcion: 'Kata de los cincuenta y cuatro pasos, muy técnico y de ritmo complejo.' }
       ];
       for (const kata of katasData) {
         await databases.createDocument(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.katas, kata.id, {
@@ -648,7 +671,7 @@ function App() {
           role: adminUserRole,
           full_name: adminUserFullname,
           license_number: 'LIC-' + Math.floor(10000 + Math.random() * 90000),
-          current_grado_id: 'marron',
+          current_grado_id: adminUserRole === 'aspirante' ? adminUserGrade : 'marron',
           current_grado_since: '2025-01-01',
           birth_date: '2000-01-01',
           active: true
@@ -772,6 +795,27 @@ function App() {
                   <option value="director">Director (Federativo)</option>
                   <option value="juez">Juez (Tribunal Calificador)</option>
                   <option value="administrador">Administrador (Gestor de Sistemas)</option>
+                </select>
+              </div>
+            )}
+
+            {authTab === 'register' && registerRole === 'aspirante' && (
+              <div className="space-y-1">
+                <label className="font-label-md text-label-md text-on-surface-variant">Selecciona tu Grado (Cinturón) Actual</label>
+                <select
+                  value={registerGrade}
+                  onChange={(e) => setRegisterGrade(e.target.value)}
+                  className="w-full bg-white border border-outline-variant p-md rounded text-xs font-semibold focus:ring-1 focus:ring-primary focus:outline-none"
+                >
+                  <option value="blanco">Cinturón Blanco</option>
+                  <option value="amarillo">Cinturón Amarillo</option>
+                  <option value="naranja">Cinturón Naranja</option>
+                  <option value="verde">Cinturón Verde</option>
+                  <option value="azul">Cinturón Azul</option>
+                  <option value="marron">Cinturón Marrón</option>
+                  <option value="1dan">Cinturón Negro 1º DAN</option>
+                  <option value="2dan">Cinturón Negro 2º DAN</option>
+                  <option value="3dan">Cinturón Negro 3º DAN</option>
                 </select>
               </div>
             )}
@@ -1715,6 +1759,26 @@ function App() {
                       <option value="administrador">Administrador</option>
                     </select>
                   </div>
+                  {adminUserRole === 'aspirante' && (
+                    <div className="space-y-1">
+                      <label className="font-label-md text-label-md">Grado (Cinturón) inicial</label>
+                      <select
+                        value={adminUserGrade}
+                        onChange={(e) => setAdminUserGrade(e.target.value)}
+                        className="w-full bg-white border border-outline-variant p-sm rounded text-xs font-semibold focus:outline-none"
+                      >
+                        <option value="blanco">Cinturón Blanco</option>
+                        <option value="amarillo">Cinturón Amarillo</option>
+                        <option value="naranja">Cinturón Naranja</option>
+                        <option value="verde">Cinturón Verde</option>
+                        <option value="azul">Cinturón Azul</option>
+                        <option value="marron">Cinturón Marrón</option>
+                        <option value="1dan">Cinturón Negro 1º DAN</option>
+                        <option value="2dan">Cinturón Negro 2º DAN</option>
+                        <option value="3dan">Cinturón Negro 3º DAN</option>
+                      </select>
+                    </div>
+                  )}
                   <div className="col-span-4 flex justify-end">
                     <button 
                       type="submit" 
