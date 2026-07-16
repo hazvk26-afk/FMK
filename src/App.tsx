@@ -818,6 +818,7 @@ function App() {
           roleMode={roleMode}
           setRoleMode={setRoleMode}
           onLogout={handleLogout}
+          userRole={userProfile?.role}
         />
 
         {/* Dynamic section display */}

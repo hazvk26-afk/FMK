@@ -7,6 +7,7 @@ interface TopbarProps {
   roleMode: UserRole;
   setRoleMode: (role: UserRole) => void;
   onLogout: () => void;
+  userRole?: UserRole;
 }
 
 export const Topbar: React.FC<TopbarProps> = ({
@@ -15,6 +16,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   roleMode,
   setRoleMode,
   onLogout,
+  userRole,
 }) => {
   const sectionTitles: { [key: string]: string } = {
     dashboard: 'FMK - Inicio (Aspirante)',
@@ -49,49 +51,51 @@ export const Topbar: React.FC<TopbarProps> = ({
             </span>
           )}
 
-          {/* Simulated role switcher toggle for 4 roles */}
-          <div className="flex items-center border border-outline-variant rounded-full overflow-hidden bg-white text-[11px] shadow-sm shrink-0">
-            <button
-              onClick={() => setRoleMode('aspirante')}
-              className={`px-sm py-[3px] font-semibold transition-colors ${
-                roleMode === 'aspirante'
-                  ? 'bg-secondary text-white font-bold'
-                  : 'text-on-surface hover:bg-surface-container-low'
-              }`}
-            >
-              Aspirante
-            </button>
-            <button
-              onClick={() => setRoleMode('director')}
-              className={`px-sm py-[3px] font-semibold transition-colors ${
-                roleMode === 'director'
-                  ? 'bg-secondary text-white font-bold'
-                  : 'text-on-surface hover:bg-surface-container-low'
-              }`}
-            >
-              Director
-            </button>
-            <button
-              onClick={() => setRoleMode('juez')}
-              className={`px-sm py-[3px] font-semibold transition-colors ${
-                roleMode === 'juez'
-                  ? 'bg-secondary text-white font-bold'
-                  : 'text-on-surface hover:bg-surface-container-low'
-              }`}
-            >
-              Juez
-            </button>
-            <button
-              onClick={() => setRoleMode('administrador')}
-              className={`px-sm py-[3px] font-semibold transition-colors ${
-                roleMode === 'administrador'
-                  ? 'bg-secondary text-white font-bold'
-                  : 'text-on-surface hover:bg-surface-container-low'
-              }`}
-            >
-              Admin
-            </button>
-          </div>
+          {/* Simulated role switcher toggle for 4 roles - ONLY visible to systems administrator */}
+          {userRole === 'administrador' && (
+            <div className="flex items-center border border-outline-variant rounded-full overflow-hidden bg-white text-[11px] shadow-sm shrink-0">
+              <button
+                onClick={() => setRoleMode('aspirante')}
+                className={`px-sm py-[3px] font-semibold transition-colors ${
+                  roleMode === 'aspirante'
+                    ? 'bg-secondary text-white font-bold'
+                    : 'text-on-surface hover:bg-surface-container-low'
+                }`}
+              >
+                Aspirante
+              </button>
+              <button
+                onClick={() => setRoleMode('director')}
+                className={`px-sm py-[3px] font-semibold transition-colors ${
+                  roleMode === 'director'
+                    ? 'bg-secondary text-white font-bold'
+                    : 'text-on-surface hover:bg-surface-container-low'
+                }`}
+              >
+                Director
+              </button>
+              <button
+                onClick={() => setRoleMode('juez')}
+                className={`px-sm py-[3px] font-semibold transition-colors ${
+                  roleMode === 'juez'
+                    ? 'bg-secondary text-white font-bold'
+                    : 'text-on-surface hover:bg-surface-container-low'
+                }`}
+              >
+                Juez
+              </button>
+              <button
+                onClick={() => setRoleMode('administrador')}
+                className={`px-sm py-[3px] font-semibold transition-colors ${
+                  roleMode === 'administrador'
+                    ? 'bg-secondary text-white font-bold'
+                    : 'text-on-surface hover:bg-surface-container-low'
+                }`}
+              >
+                Admin
+              </button>
+            </div>
+          )}
 
           {sessionEmail && (
             <button
