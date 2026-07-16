@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from './services/supabase';
+import { databases, account, APPWRITE_CONFIG } from './services/appwrite';
+import { Query, ID } from 'appwrite';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { ValidatorPanel } from './pages/ValidatorPanel';
@@ -15,55 +16,73 @@ function App() {
   const [fullName, setFullName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [authMessage, setAuthMessage] = useState<string>('Ingresa credenciales válidas para conectar con el backend de Supabase.');
+  const [authMessage, setAuthMessage] = useState<string>('Ingresa credenciales válidas para conectar con el backend de Appwrite.');
   const [authType, setAuthType] = useState<'ok' | 'error' | ''>('');
   const [connectionStatus, setConnectionStatus] = useState<string>('Sin sesión');
   const [connectionClass, setConnectionClass] = useState<string>('bg-amber-100 text-amber-700');
 
-  // Supabase Data State
+  // Appwrite Data State
   const [loadedExams, setLoadedExams] = useState<Examen[]>([]);
   const [loadedEnrollments, setLoadedEnrollments] = useState<Inscripcion[]>([]);
   const [loadedAdminEnrollments, setLoadedAdminEnrollments] = useState<Inscripcion[]>([]);
   const [loadedKatas, setLoadedKatas] = useState<Kata[]>([]);
   const [loadedPayments, setLoadedPayments] = useState<Pago[]>([]);
 
-  // Monitor de sesión de Supabase
+  // Monitor de sesión de Appwrite
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      handleSession(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      handleSession(session);
-    });
-
-    return () => subscription.unsubscribe();
+    account.get()
+      .then((user) => {
+        handleSession(user);
+      })
+      .catch(() => {
+        handleSession(null);
+      });
   }, []);
 
-  const handleSession = async (session: any) => {
-    const user = session?.user || null;
+  const handleSession = async (user: any) => {
     setSessionUser(user);
 
     if (user) {
       setConnectionStatus('Conectado');
       setConnectionClass('bg-green-100 text-green-700');
       
-      // Cargar perfil
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*, current_grado:current_grado_id(id, nombre, orden)')
-        .eq('id', user.id)
-        .maybeSingle();
+      try {
+        // Cargar perfil desde colección "profiles"
+        const response = await databases.listDocuments(
+          APPWRITE_CONFIG.databaseId,
+          APPWRITE_CONFIG.collections.profiles,
+          [Query.equal('id', user.$id)]
+        );
 
-      if (!error && profile) {
-        setUserProfile(profile);
-        setRoleMode(profile.role);
-      } else {
+        const profileDoc = response.documents[0] as any;
+        if (profileDoc) {
+          const prof: Profile = {
+            id: profileDoc.id,
+            role: profileDoc.role as UserRole,
+            full_name: profileDoc.full_name,
+            dni_nie: profileDoc.dni_nie,
+            birth_date: profileDoc.birth_date,
+            phone: profileDoc.phone,
+            club_id: null,
+            license_number: profileDoc.license_number,
+            current_grado_id: profileDoc.current_grado_id,
+            current_grado_since: profileDoc.current_grado_since,
+            avatar_url: null,
+            active: profileDoc.active,
+            created_at: profileDoc.$createdAt,
+            updated_at: profileDoc.$updatedAt
+          };
+          setUserProfile(prof);
+          setRoleMode(prof.role);
+        } else {
+          throw new Error('Perfil no encontrado');
+        }
+      } catch (err) {
         // Fallback profile
         const fallbackProf: Profile = {
-          id: user.id,
+          id: user.$id,
           role: 'aspirante',
-          full_name: user.user_metadata?.full_name || user.email,
+          full_name: user.name || user.email,
           dni_nie: null,
           birth_date: '2000-01-01',
           phone: null,
@@ -80,7 +99,7 @@ function App() {
         setRoleMode('aspirante');
       }
 
-      await loadSupabaseData(user.id);
+      await loadAppwriteData(user.$id);
     } else {
       setUserProfile(null);
       setConnectionStatus('Sin sesión');
@@ -96,23 +115,87 @@ function App() {
     }
   };
 
-  const loadSupabaseData = async (userId: string) => {
+  const loadAppwriteData = async (userId: string) => {
     try {
-      const [{ data: examenes }, { data: inscripciones }, { data: adminInscripciones }, { data: katas }, { data: pagos }] = await Promise.all([
-        supabase.from('examenes').select('*').order('fecha', { ascending: true }),
-        supabase.from('inscripciones').select('*').eq('federado_id', userId).order('created_at', { ascending: false }),
-        supabase.from('inscripciones').select('*, profiles:federado_id(full_name, license_number)').order('created_at', { ascending: false }),
-        supabase.from('katas').select('*').order('nombre', { ascending: true }),
-        supabase.from('pagos').select('*').order('created_at', { ascending: false })
+      const [examsRes, enrollmentsRes, allEnrollmentsRes, katasRes, paymentsRes] = await Promise.all([
+        databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.examenes, [Query.orderAsc('fecha')]).catch(() => ({ documents: [] })),
+        databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.inscripciones, [Query.equal('federado_id', userId)]).catch(() => ({ documents: [] })),
+        databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.inscripciones, [Query.limit(100)]).catch(() => ({ documents: [] })),
+        databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.katas, [Query.orderAsc('nombre')]).catch(() => ({ documents: [] })),
+        databases.listDocuments(APPWRITE_CONFIG.databaseId, APPWRITE_CONFIG.collections.pagos, [Query.orderDesc('created_at')]).catch(() => ({ documents: [] }))
       ]);
 
-      setLoadedExams((examenes as Examen[]) || []);
-      setLoadedEnrollments((inscripciones as Inscripcion[]) || []);
-      setLoadedAdminEnrollments((adminInscripciones as Inscripcion[]) || []);
-      setLoadedKatas((katas as Kata[]) || []);
-      setLoadedPayments((pagos as Pago[]) || []);
+      setLoadedExams(
+        examsRes.documents.map((doc: any) => ({
+          id: doc.$id,
+          grado_objetivo_id: doc.grado_objetivo_id,
+          fecha: doc.fecha,
+          sede: doc.sede,
+          tribunal: doc.tribunal,
+          cupo_maximo: doc.cupo_maximo,
+          estado: doc.estado,
+          fecha_limite_inscripcion: null
+        }))
+      );
+
+      const mappedEnrollments: Inscripcion[] = enrollmentsRes.documents.map((doc: any) => ({
+        id: doc.$id,
+        federado_id: doc.federado_id,
+        examen_id: doc.examen_id,
+        estado: doc.estado,
+        resultado: doc.resultado,
+        validacion_snapshot: doc.validacion_snapshot ? JSON.parse(doc.validacion_snapshot) : null,
+        fecha_inscripcion: doc.fecha_inscripcion,
+        created_at: doc.$createdAt
+      }));
+      setLoadedEnrollments(mappedEnrollments);
+
+      setLoadedAdminEnrollments(
+        allEnrollmentsRes.documents.map((doc: any) => ({
+          id: doc.$id,
+          federado_id: doc.federado_id,
+          examen_id: doc.examen_id,
+          estado: doc.estado,
+          resultado: doc.resultado,
+          validacion_snapshot: doc.validacion_snapshot ? JSON.parse(doc.validacion_snapshot) : null,
+          fecha_inscripcion: doc.fecha_inscripcion,
+          created_at: doc.$createdAt,
+          profiles: {
+            full_name: doc.federado_name || doc.federado_id,
+            license_number: doc.license_number || 'N/A'
+          }
+        }))
+      );
+
+      setLoadedKatas(
+        katasRes.documents.map((doc: any) => ({
+          id: doc.$id,
+          nombre: doc.nombre,
+          grado_id: doc.grado_id,
+          tipo: doc.tipo,
+          descripcion: doc.descripcion,
+          video_url: null,
+          origen: null
+        }))
+      );
+
+      setLoadedPayments(
+        paymentsRes.documents.map((doc: any) => ({
+          id: doc.$id,
+          inscripcion_id: doc.inscripcion_id,
+          tasa_id: null,
+          importe: doc.importe,
+          metodo: 'tarjeta',
+          estado: doc.estado,
+          referencia: doc.referencia,
+          referencia_externa: null,
+          fecha_pago: doc.created_at,
+          created_at: doc.$createdAt
+        }))
+      );
+
     } catch (err) {
-      console.error('Error cargando datos federativos:', err);
+      console.error('Error cargando datos desde Appwrite:', err);
     }
   };
 
@@ -121,18 +204,33 @@ function App() {
     setAuthMessage('Registrando...');
     setAuthType('');
     
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName || email } }
-    });
+    try {
+      const generatedId = ID.unique();
+      // Crear cuenta
+      await account.create(generatedId, email, password, fullName || email);
+      
+      // Crear perfil por defecto en la colección "profiles"
+      await databases.createDocument(
+        APPWRITE_CONFIG.databaseId,
+        APPWRITE_CONFIG.collections.profiles,
+        ID.unique(),
+        {
+          id: generatedId,
+          role: 'aspirante',
+          full_name: fullName || email,
+          license_number: 'LIC-' + Math.floor(10000 + Math.random() * 90000),
+          current_grado_id: 'marron',
+          current_grado_since: '2025-01-01',
+          birth_date: '2000-01-01',
+          active: true
+        }
+      );
 
-    if (error) {
-      setAuthMessage('Error: ' + error.message);
-      setAuthType('error');
-    } else {
       setAuthMessage('Registro exitoso. Inicia sesión para continuar.');
       setAuthType('ok');
+    } catch (error: any) {
+      setAuthMessage('Error: ' + error.message);
+      setAuthType('error');
     }
   };
 
@@ -140,20 +238,26 @@ function App() {
     setAuthMessage('Ingresando...');
     setAuthType('');
     
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    
-    if (error) {
-      setAuthMessage('Error al ingresar: ' + error.message);
-      setAuthType('error');
-    } else {
+    try {
+      await account.createEmailPasswordSession(email, password);
+      const user = await account.get();
+      await handleSession(user);
       setAuthMessage('Sesión iniciada con éxito.');
       setAuthType('ok');
+    } catch (error: any) {
+      setAuthMessage('Error al ingresar: ' + error.message);
+      setAuthType('error');
     }
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    alert('Sesión cerrada.');
+    try {
+      await account.deleteSession('current');
+      await handleSession(null);
+      alert('Sesión cerrada.');
+    } catch (err: any) {
+      alert('Error al cerrar sesión: ' + err.message);
+    }
   };
 
   const handleEnrollInExam = async (examId: string) => {
@@ -163,23 +267,29 @@ function App() {
       return;
     }
 
-    const { error } = await supabase.from('inscripciones').insert({
-      federado_id: sessionUser.id,
-      examen_id: examId,
-      estado: 'pendiente_documentacion',
-      resultado: 'pendiente',
-      validacion_snapshot: {
-        origen: 'vite_react_app',
-        fecha: new Date().toISOString()
-      }
-    });
-
-    if (error) {
-      alert('Error en inscripción: ' + error.message);
-    } else {
+    try {
+      await databases.createDocument(
+        APPWRITE_CONFIG.databaseId,
+        APPWRITE_CONFIG.collections.inscripciones,
+        ID.unique(),
+        {
+          federado_id: sessionUser.$id,
+          examen_id: examId,
+          estado: 'pendiente_documentacion',
+          resultado: 'pendiente',
+          validacion_snapshot: JSON.stringify({
+            origen: 'appwrite_react_app',
+            fecha: new Date().toISOString()
+          }),
+          fecha_inscripcion: new Date().toISOString()
+        }
+      );
+      
       alert('Inscripción creada con éxito.');
-      loadSupabaseData(sessionUser.id);
+      await loadAppwriteData(sessionUser.$id);
       setCurrentSection('enrollment');
+    } catch (error: any) {
+      alert('Error en inscripción: ' + error.message);
     }
   };
 
@@ -209,9 +319,9 @@ function App() {
               {/* Promo Banner */}
               <div className="bg-surface-container-low border border-outline-variant rounded-xl p-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
                 <div>
-                  <h3 className="text-lg font-bold text-primary">Validación lista para 1º DAN</h3>
+                  <h3 className="text-lg font-bold text-primary">Validación de requisitos (Appwrite)</h3>
                   <p className="text-xs text-on-surface-variant mt-1">
-                    El sistema cruza edad, permanencia, licencias y grado previo para confirmar la elegibilidad.
+                    El sistema cruza edad, permanencia, licencias y grado previo para confirmar la elegibilidad usando Appwrite.
                   </p>
                 </div>
                 <button 
@@ -227,7 +337,7 @@ function App() {
                 <div className="bg-white border border-outline-variant rounded-xl p-lg space-y-md">
                   <div className="flex justify-between items-center border-b border-outline-variant pb-sm">
                     <div>
-                      <h4 className="text-sm font-bold">Acceso conectado a Supabase</h4>
+                      <h4 className="text-sm font-bold">Acceso conectado a Appwrite</h4>
                       <p className="text-xs text-on-surface-variant mt-1">Registra un usuario o inicia sesión para conectarte en tiempo real.</p>
                     </div>
                     <span className={`text-xs font-bold px-sm py-[2px] rounded-full ${connectionClass}`}>
@@ -263,7 +373,7 @@ function App() {
                         onChange={(e) => setPassword(e.target.value)}
                         type="password" 
                         className="w-full bg-white border border-outline-variant p-sm rounded text-xs" 
-                        placeholder="Mínimo 6 caracteres" 
+                        placeholder="Mínimo 8 caracteres" 
                       />
                     </div>
                     <div className="flex gap-sm">
@@ -361,7 +471,7 @@ function App() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={7} className="p-md text-center">No hay exámenes registrados. Inicia sesión o ejecuta SQL semilla.</td>
+                        <td colSpan={7} className="p-md text-center">No hay exámenes registrados. Inicia sesión o crea la base de datos Appwrite.</td>
                       </tr>
                     )}
                   </tbody>
@@ -455,7 +565,7 @@ function App() {
                     </div>
                   ))
                 ) : (
-                  <div className="col-span-3 text-center text-xs p-md">Biblioteca de katas vacía. Inicia sesión en Supabase.</div>
+                  <div className="col-span-3 text-center text-xs p-md">Biblioteca de katas vacía. Configura la base de datos Appwrite.</div>
                 )}
               </div>
             </section>
@@ -527,7 +637,7 @@ function App() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-md">
                 <div className="bg-white border border-outline-variant rounded-xl p-md space-y-sm">
                   <h4 className="text-xs font-bold">Usuarios y clubes</h4>
-                  <p className="text-[11px] text-on-surface-variant">Gestión de deportistas federados y roles en Supabase.</p>
+                  <p className="text-[11px] text-on-surface-variant">Gestión de deportistas federados y roles en Appwrite.</p>
                 </div>
                 <div className="bg-white border border-outline-variant rounded-xl p-md space-y-sm">
                   <h4 className="text-xs font-bold">Edición de Normativa</h4>
@@ -535,7 +645,7 @@ function App() {
                 </div>
                 <div className="bg-white border border-outline-variant rounded-xl p-md space-y-sm">
                   <h4 className="text-xs font-bold">Registro de Auditoría</h4>
-                  <p className="text-[11px] text-on-surface-variant">Historial inmutable de logs administrativos (RLS).</p>
+                  <p className="text-[11px] text-on-surface-variant">Historial inmutable de logs administrativos.</p>
                 </div>
               </div>
 
@@ -563,13 +673,17 @@ function App() {
                             <td className="p-md">
                               <button
                                 onClick={async () => {
-                                  const { error } = await supabase
-                                    .from('inscripciones')
-                                    .update({ estado: 'aprobada', resultado: 'apto' })
-                                    .eq('id', enroll.id);
-                                  if (!error) {
+                                  try {
+                                    await databases.updateDocument(
+                                      APPWRITE_CONFIG.databaseId,
+                                      APPWRITE_CONFIG.collections.inscripciones,
+                                      enroll.id,
+                                      { estado: 'aprobada', resultado: 'apto' }
+                                    );
                                     alert('Aprobado con éxito');
-                                    loadSupabaseData(sessionUser.id);
+                                    if (sessionUser) await loadAppwriteData(sessionUser.$id);
+                                  } catch (err: any) {
+                                    alert('Error al aprobar: ' + err.message);
                                   }
                                 }}
                                 className="bg-secondary text-white text-[10px] font-bold px-sm py-1 rounded hover:bg-secondary-container"

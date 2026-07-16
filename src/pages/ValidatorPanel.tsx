@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
+import { databases, APPWRITE_CONFIG } from '../services/appwrite';
+import { Query } from 'appwrite';
 import type { UserRole, Profile, Grado, ValidationResult } from '../types';
 
 interface ValidatorPanelProps {
@@ -40,19 +41,27 @@ export const ValidatorPanel: React.FC<ValidatorPanelProps> = ({ roleMode, userPr
     '4dan': { prev: '3dan', age: 25, years: 4, licenses: 4, label: '4º DAN' }
   };
 
-  // Cargar grados de la base de datos
+  // Cargar grados de Appwrite
   useEffect(() => {
     const fetchGrades = async () => {
       try {
-        const { data, error } = await supabase
-          .from('grados')
-          .select('*')
-          .order('orden', { ascending: true });
-        if (!error && data) {
-          setDbGrades(data);
+        const response = await databases.listDocuments(
+          APPWRITE_CONFIG.databaseId,
+          APPWRITE_CONFIG.collections.grados,
+          [Query.orderAsc('orden')]
+        );
+        if (response.documents.length > 0) {
+          const grades: Grado[] = response.documents.map((doc: any) => ({
+            id: doc.id || doc.$id,
+            nombre: doc.nombre,
+            tipo: doc.tipo,
+            orden: doc.orden,
+            created_at: doc.$createdAt
+          }));
+          setDbGrades(grades);
         }
       } catch (err) {
-        console.error('Error fetching grades:', err);
+        console.error('Error fetching grades from Appwrite:', err);
       }
     };
     fetchGrades();
@@ -80,7 +89,7 @@ export const ValidatorPanel: React.FC<ValidatorPanelProps> = ({ roleMode, userPr
   // Ejecutar validación
   const runValidation = async () => {
     setLoading(true);
-    setRpcWarning(false);
+    setRpcWarning(true); // En Appwrite siempre mostramos aviso de que el cálculo se hace en cliente (JS)
     
     const activeFederadoId = roleMode === 'director' 
       ? selectedFederado?.id 
@@ -93,29 +102,8 @@ export const ValidatorPanel: React.FC<ValidatorPanelProps> = ({ roleMode, userPr
       return;
     }
 
-    try {
-      // 1. Invocar la función de validación oficial RPC en base de datos
-      const { data, error } = await supabase.rpc('fn_validar_elegibilidad', {
-        p_federado_id: activeFederadoId,
-        p_grado_objetivo_id: targetGradeId,
-        p_fecha_referencia: new Date().toISOString()
-      });
-
-      if (!error && data) {
-        setValidation(data);
-      } else {
-        // Fallback local con aviso de TODO
-        console.warn('Supabase RPC fn_validar_elegibilidad falló o no existe. Usando cálculo de fallback local.', error);
-        setRpcWarning(true);
-        await runLocalFallback(activeFederadoId);
-      }
-    } catch (err) {
-      console.warn('Excepción de red al invocar RPC. Usando cálculo local.', err);
-      setRpcWarning(true);
-      await runLocalFallback(activeFederadoId);
-    } finally {
-      setLoading(false);
-    }
+    await runLocalFallback(activeFederadoId);
+    setLoading(false);
   };
 
   // Validación local offline/simulada si no hay usuario o datos
@@ -162,75 +150,85 @@ export const ValidatorPanel: React.FC<ValidatorPanelProps> = ({ roleMode, userPr
 
   // Fallback local calculando en base a datos reales del perfil y licencias cargados
   const runLocalFallback = async (federadoId: string) => {
-    // Cargar perfil y licencias para simular
     let profileData: any = null;
-    if (federadoId === userProfile?.id) {
-      profileData = userProfile;
-    } else {
-      const { data } = await supabase.from('profiles').select('*').eq('id', federadoId).maybeSingle();
-      profileData = data;
-    }
+    
+    try {
+      if (federadoId === userProfile?.id) {
+        profileData = userProfile;
+      } else {
+        const res = await databases.listDocuments(
+          APPWRITE_CONFIG.databaseId,
+          APPWRITE_CONFIG.collections.profiles,
+          [Query.equal('id', federadoId)]
+        );
+        profileData = res.documents[0];
+      }
 
-    if (!profileData) {
+      if (!profileData) {
+        runLocalSimulation();
+        return;
+      }
+
+      // Contar licencias válidas en Appwrite
+      const licenciasRes = await databases.listDocuments(
+        APPWRITE_CONFIG.databaseId,
+        APPWRITE_CONFIG.collections.licencias_federativas,
+        [Query.equal('federado_id', federadoId), Query.notEqual('estado', 'anulada')]
+      );
+
+      const rule = localRequirements[targetGradeId] || localRequirements['1dan'];
+      const currentName = dbGrades.find(g => g.id === currentGradeId)?.nombre || localGrades.find(g => g.id === currentGradeId)?.nombre || currentGradeId;
+      const prevName = dbGrades.find(g => g.id === rule.prev)?.nombre || localGrades.find(g => g.id === rule.prev)?.nombre || rule.prev;
+
+      // Calcular edad y permanencia
+      const age = profileData.birth_date 
+        ? Math.floor((new Date().getTime() - new Date(profileData.birth_date).getTime()) / 31557600000)
+        : 0;
+        
+      const permanence = profileData.current_grado_since
+        ? Math.round(((new Date().getTime() - new Date(profileData.current_grado_since).getTime()) / 31557600000) * 10) / 10
+        : 0.0;
+
+      const licenseCount = licenciasRes.total || 0;
+
+      const seqOk = currentGradeId === rule.prev;
+      const ageOk = age >= rule.age;
+      const yearsOk = permanence >= rule.years;
+      const licensesOk = licenseCount >= rule.licenses;
+
+      setValidation({
+        apto: seqOk && ageOk && yearsOk && licensesOk,
+        datos_completos: !!profileData.birth_date && !!profileData.current_grado_since,
+        progresion_secuencial: {
+          apto: seqOk,
+          actual_id: currentGradeId,
+          requerido_id: rule.prev,
+          actual_nombre: currentName,
+          requerido_nombre: prevName
+        },
+        edad: {
+          apto: ageOk,
+          actual: age,
+          requerido: rule.age
+        },
+        permanencia: {
+          apto: yearsOk,
+          actual: permanence,
+          requerido: rule.years
+        },
+        licencias: {
+          apto: licensesOk,
+          actual: licenseCount,
+          consecutivas_requeridas: rule.licenses,
+          alternas_requeridas: rule.licenses + 1
+        },
+        grado_objetivo_nombre: rule.label
+      });
+
+    } catch (err) {
+      console.warn('Error al ejecutar cálculo local desde Appwrite. Usando simulación.', err);
       runLocalSimulation();
-      return;
     }
-
-    // Contar licencias válidas en base de datos
-    const { count } = await supabase
-      .from('licencias_federativas')
-      .select('*', { count: 'exact', head: true })
-      .eq('federado_id', federadoId)
-      .neq('estado', 'anulada');
-
-    const rule = localRequirements[targetGradeId] || localRequirements['1dan'];
-    const currentName = dbGrades.find(g => g.id === currentGradeId)?.nombre || localGrades.find(g => g.id === currentGradeId)?.nombre || currentGradeId;
-    const prevName = dbGrades.find(g => g.id === rule.prev)?.nombre || localGrades.find(g => g.id === rule.prev)?.nombre || rule.prev;
-
-    // Calcular edad y permanencia
-    const age = profileData.birth_date 
-      ? Math.floor((new Date().getTime() - new Date(profileData.birth_date).getTime()) / 31557600000)
-      : 0;
-      
-    const permanence = profileData.current_grado_since
-      ? Math.round(((new Date().getTime() - new Date(profileData.current_grado_since).getTime()) / 31557600000) * 10) / 10
-      : 0.0;
-
-    const licenseCount = count || 0;
-
-    const seqOk = currentGradeId === rule.prev;
-    const ageOk = age >= rule.age;
-    const yearsOk = permanence >= rule.years;
-    const licensesOk = licenseCount >= rule.licenses;
-
-    setValidation({
-      apto: seqOk && ageOk && yearsOk && licensesOk,
-      datos_completos: !!profileData.birth_date && !!profileData.current_grado_since,
-      progresion_secuencial: {
-        apto: seqOk,
-        actual_id: currentGradeId,
-        requerido_id: rule.prev,
-        actual_nombre: currentName,
-        requerido_nombre: prevName
-      },
-      edad: {
-        apto: ageOk,
-        actual: age,
-        requerido: rule.age
-      },
-      permanencia: {
-        apto: yearsOk,
-        actual: permanence,
-        requerido: rule.years
-      },
-      licencias: {
-        apto: licensesOk,
-        actual: licenseCount,
-        consecutivas_requeridas: rule.licenses,
-        alternas_requeridas: rule.licenses + 1
-      },
-      grado_objetivo_nombre: rule.label
-    });
   };
 
   // Buscar deportistas (Rol director)
@@ -238,17 +236,29 @@ export const ValidatorPanel: React.FC<ValidatorPanelProps> = ({ roleMode, userPr
     if (!searchQuery.trim()) return;
 
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, license_number, current_grado_id')
-        .or(`full_name.ilike.%${searchQuery}%,dni_nie.ilike.%${searchQuery}%,license_number.ilike.%${searchQuery}%`)
-        .limit(5);
+      const response = await databases.listDocuments(
+        APPWRITE_CONFIG.databaseId,
+        APPWRITE_CONFIG.collections.profiles,
+        [
+          Query.or([
+            Query.contains('full_name', searchQuery),
+            Query.contains('dni_nie', searchQuery),
+            Query.contains('license_number', searchQuery)
+          ]),
+          Query.limit(5)
+        ]
+      );
 
-      if (!error && data) {
-        setSearchResults(data);
-      }
+      setSearchResults(
+        response.documents.map((doc: any) => ({
+          id: doc.id || doc.$id,
+          full_name: doc.full_name,
+          license_number: doc.license_number,
+          current_grado_id: doc.current_grado_id
+        }))
+      );
     } catch (err) {
-      console.error('Error searching:', err);
+      console.error('Error searching in Appwrite:', err);
     }
   };
 
@@ -264,7 +274,7 @@ export const ValidatorPanel: React.FC<ValidatorPanelProps> = ({ roleMode, userPr
 
   // Descarga de Certificado (Mock)
   const handleDownloadCert = () => {
-    alert('Generando y descargando Certificado de Elegibilidad en PDF desde Supabase Edge Function...');
+    alert('Generando y descargando Certificado de Elegibilidad en PDF desde Appwrite Function...');
   };
 
   // Iniciar Inscripción (Navegación al wizard)
@@ -288,13 +298,12 @@ export const ValidatorPanel: React.FC<ValidatorPanelProps> = ({ roleMode, userPr
 
   return (
     <div className="space-y-gutter">
-      {/* TODO Warning for local simulation fallback */}
+      {/* Appwrite calculations message */}
       {rpcWarning && (
         <div className="bg-amber-50 border border-amber-300 rounded p-sm text-amber-800 text-xs flex items-center gap-sm">
-          <span className="material-symbols-outlined text-sm font-bold">warning</span>
+          <span className="material-symbols-outlined text-sm font-bold">info</span>
           <span>
-            <strong>Nota técnica (TODO):</strong> La validación se está calculando en local (JS) como fallback. 
-            La validación definitiva en producción debe ejecutarse mediante la función SQL RPC <code>fn_validar_elegibilidad</code>.
+            <strong>Conexión Appwrite:</strong> La validación se calcula del lado del cliente (JS) recuperando los atributos de edad, permanencia y licencias federativas del usuario en Appwrite.
           </span>
         </div>
       )}
@@ -538,7 +547,7 @@ export const ValidatorPanel: React.FC<ValidatorPanelProps> = ({ roleMode, userPr
                 </h5>
                 <p className="text-xs opacity-90 max-w-[200px] mx-auto mb-lg">
                   {!validation.datos_completos 
-                    ? 'Faltan completar algunos datos del deportista en Supabase para validar.' 
+                    ? 'Faltan completar algunos datos del deportista en Appwrite para validar.' 
                     : validation.apto 
                       ? `El federado cumple con todos los requisitos para presentarse al examen de ${validation.grado_objetivo_nombre}.`
                       : 'No cumple con las cuotas requeridas en la Normativa de Grados vigente.'}
