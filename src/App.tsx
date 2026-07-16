@@ -1,16 +1,116 @@
 import { useState, useEffect } from 'react';
-import { databases, account, APPWRITE_CONFIG } from './services/appwrite';
+import { databases, account, storage, APPWRITE_CONFIG } from './services/appwrite';
 import { Query, ID } from 'appwrite';
 import { Sidebar } from './components/Sidebar';
 import { Topbar } from './components/Topbar';
 import { ValidatorPanel } from './pages/ValidatorPanel';
 import type { UserRole, Profile, Examen, Inscripcion, Kata, Pago, Club } from './types';
+import { jsPDF } from 'jspdf';
+
+const generateCertificatePDF = (fullName: string, gradeId: string, dateStr: string, judgeId: string) => {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  // Background cream color
+  doc.setFillColor(253, 251, 247);
+  doc.rect(0, 0, 297, 210, 'F');
+
+  // Outer border (Burgundy red)
+  doc.setDrawColor(128, 0, 32);
+  doc.setLineWidth(2);
+  doc.rect(10, 10, 277, 190, 'D');
+
+  // Inner thin gold border
+  doc.setDrawColor(212, 175, 55);
+  doc.setLineWidth(0.5);
+  doc.rect(13, 13, 271, 184, 'D');
+
+  // Header Title
+  doc.setTextColor(128, 0, 32);
+  doc.setFont('times', 'bold');
+  doc.setFontSize(26);
+  doc.text('FEDERACIÓN MADRILEÑA DE KARATE', 148.5, 35, { align: 'center' });
+
+  // Subtitle
+  doc.setTextColor(60, 60, 60);
+  doc.setFont('times', 'normal');
+  doc.setFontSize(14);
+  doc.text('Reconocimiento Oficial de Grados y Disciplinas Asociadas', 148.5, 45, { align: 'center' });
+
+  // Certificate main text
+  doc.setTextColor(128, 0, 32);
+  doc.setFont('times', 'italic');
+  doc.setFontSize(18);
+  doc.text('Por cuanto se han validado y aprobado los requisitos técnicos y prácticos...', 148.5, 70, { align: 'center' });
+
+  doc.setTextColor(40, 40, 40);
+  doc.setFont('times', 'normal');
+  doc.setFontSize(14);
+  doc.text('Se otorga el presente diploma de grado a:', 148.5, 85, { align: 'center' });
+
+  // Applicant Name
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('times', 'bold');
+  doc.setFontSize(28);
+  doc.text(fullName.toUpperCase(), 148.5, 105, { align: 'center' });
+
+  // Grade Name
+  doc.setTextColor(128, 0, 32);
+  doc.setFont('times', 'bold');
+  doc.setFontSize(20);
+  
+  // Format Grade Name
+  const cleanGrade = gradeId.replace('dan', 'º DAN').toUpperCase();
+  doc.text(`CINTURÓN NEGRO - ${cleanGrade}`, 148.5, 125, { align: 'center' });
+
+  // Date
+  doc.setTextColor(60, 60, 60);
+  doc.setFont('times', 'normal');
+  doc.setFontSize(12);
+  doc.text(`Expedido en Madrid a fecha: ${new Date(dateStr).toLocaleDateString('es-ES')}`, 148.5, 145, { align: 'center' });
+
+  // Draw gold seal circle on bottom-left
+  doc.setFillColor(212, 175, 55);
+  doc.circle(45, 170, 15, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(8);
+  doc.setFont('times', 'bold');
+  doc.text('SELLO', 45, 168, { align: 'center' });
+  doc.text('OFICIAL', 45, 172, { align: 'center' });
+  doc.text('FMK', 45, 176, { align: 'center' });
+
+  // Signatures on bottom-right
+  doc.setTextColor(60, 60, 60);
+  doc.setFontSize(10);
+  doc.setFont('times', 'normal');
+  doc.line(180, 170, 250, 170); // Line for Juez
+  doc.text('Firma del Tribunal Calificador', 215, 175, { align: 'center' });
+  doc.setFont('times', 'bold');
+  
+  const cleanJudge = judgeId === 'default_juez' || !judgeId ? 'Tribunal de Grados FMK' : `Juez ID: ${judgeId.substring(0, 8)}`;
+  doc.text(cleanJudge, 215, 167, { align: 'center' });
+
+  // Save the document
+  doc.save(`certificado_${fullName.toLowerCase().replace(/\s+/g, '_')}.pdf`);
+};
 
 function App() {
   const [currentSection, setCurrentSection] = useState<string>('dashboard');
   const [roleMode, setRoleMode] = useState<UserRole>('aspirante');
   const [sessionUser, setSessionUser] = useState<any | null>(null);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
+  const [darkMode, setDarkMode] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
   
   // Auth Form State
   const [fullName, setFullName] = useState<string>('');
@@ -43,6 +143,10 @@ function App() {
   const [selectedExamId, setSelectedExamId] = useState<string>('');
   const [docDniUploaded, setDocDniUploaded] = useState<boolean>(false);
   const [docLicUploaded, setDocLicUploaded] = useState<boolean>(false);
+  const [dniFileId, setDniFileId] = useState<string>('');
+  const [licFileId, setLicFileId] = useState<string>('');
+  const [isUploadingDni, setIsUploadingDni] = useState<boolean>(false);
+  const [isUploadingLic, setIsUploadingLic] = useState<boolean>(false);
 
   // New Exam Form State
   const [newExamGrade, setNewExamGrade] = useState<string>('1dan');
@@ -440,6 +544,44 @@ function App() {
     }
   };
 
+  // Carga Real de Archivos a Appwrite Storage
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: 'dni' | 'lic') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (docType === 'dni') {
+      setIsUploadingDni(true);
+    } else {
+      setIsUploadingLic(true);
+    }
+
+    try {
+      const response = await storage.createFile(
+        APPWRITE_CONFIG.bucketId,
+        ID.unique(),
+        file
+      );
+
+      if (docType === 'dni') {
+        setDniFileId(response.$id);
+        setDocDniUploaded(true);
+        alert('Copia del DNI/NIE subida a Appwrite Storage con éxito.');
+      } else {
+        setLicFileId(response.$id);
+        setDocLicUploaded(true);
+        alert('Copia de la Licencia Federativa subida a Appwrite Storage con éxito.');
+      }
+    } catch (error: any) {
+      alert('Error al subir el archivo a Appwrite Storage: ' + error.message);
+    } finally {
+      if (docType === 'dni') {
+        setIsUploadingDni(false);
+      } else {
+        setIsUploadingLic(false);
+      }
+    }
+  };
+
   // Enviar inscripción oficial
   const handleSubmitEnrollment = async () => {
     if (!selectedExamId) {
@@ -448,7 +590,7 @@ function App() {
     }
 
     try {
-      await databases.createDocument(
+      const newEnroll = await databases.createDocument(
         APPWRITE_CONFIG.databaseId,
         APPWRITE_CONFIG.collections.inscripciones,
         ID.unique(),
@@ -462,7 +604,9 @@ function App() {
             fecha: new Date().toISOString(),
             verificacion: 'apto'
           }),
-          fecha_inscripcion: new Date().toISOString()
+          fecha_inscripcion: new Date().toISOString(),
+          dni_file_id: dniFileId,
+          lic_file_id: licFileId
         }
       );
 
@@ -471,7 +615,7 @@ function App() {
         APPWRITE_CONFIG.collections.pagos,
         ID.unique(),
         {
-          inscripcion_id: selectedExamId,
+          inscripcion_id: newEnroll.$id,
           importe: 50.00,
           estado: 'pendiente',
           referencia: 'REF-' + Math.floor(100000 + Math.random() * 900000),
@@ -484,6 +628,8 @@ function App() {
       setSelectedExamId('');
       setDocDniUploaded(false);
       setDocLicUploaded(false);
+      setDniFileId('');
+      setLicFileId('');
       
       await loadAppwriteData(sessionUser.$id);
       setCurrentSection('fees');
@@ -863,6 +1009,8 @@ function App() {
           setRoleMode={setRoleMode}
           onLogout={handleLogout}
           userRole={userProfile?.role}
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
         />
 
         {/* Dynamic section display */}
@@ -1023,20 +1171,50 @@ function App() {
                     <div className="space-y-md">
                       <p className="font-body-md text-body-md">Debes subir copias en formato digital de los siguientes documentos obligatorios:</p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-md">
-                        <div className="border border-outline-variant p-md rounded bg-surface-container-low flex justify-between items-center">
-                          <div>
-                            <h5 className="font-headline-sm text-headline-sm font-bold text-xs">Copia DNI / NIE</h5>
-                            <span className="text-[10px] text-on-surface-variant">{docDniUploaded ? '✓ dni_digital.pdf cargado' : 'Falta cargar'}</span>
+                        {/* DNI Upload */}
+                        <div className="border border-outline-variant p-md rounded bg-surface-container-low flex flex-col gap-sm">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h5 className="font-headline-sm text-headline-sm font-bold text-xs">Copia DNI / NIE</h5>
+                              <span className="text-[10px] text-on-surface-variant">
+                                {docDniUploaded ? `✓ Archivo cargado (ID: ${dniFileId.substring(0,8)}...)` : 'Falta cargar archivo'}
+                              </span>
+                            </div>
+                            <span className={`w-2.5 h-2.5 rounded-full ${docDniUploaded ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
                           </div>
-                          <button onClick={() => setDocDniUploaded(true)} className="bg-white border border-outline text-[10px] font-bold py-1 px-sm rounded">Subir Mock</button>
+                          <div className="flex items-center gap-sm mt-1">
+                            <input 
+                              type="file" 
+                              accept=".pdf,.png,.jpg,.jpeg" 
+                              onChange={(e) => handleFileUpload(e, 'dni')}
+                              disabled={isUploadingDni}
+                              className="text-[10px] block w-full text-on-surface-variant file:mr-md file:py-1 file:px-sm file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-primary file:text-white hover:file:bg-primary-container cursor-pointer"
+                            />
+                            {isUploadingDni && <span className="text-[9px] text-primary font-bold animate-pulse">Cargando...</span>}
+                          </div>
                         </div>
 
-                        <div className="border border-outline-variant p-md rounded bg-surface-container-low flex justify-between items-center">
-                          <div>
-                            <h5 className="font-headline-sm text-headline-sm font-bold text-xs">Licencia Federativa (PDF)</h5>
-                            <span className="text-[10px] text-on-surface-variant">{docLicUploaded ? '✓ licencias_2026.pdf cargado' : 'Falta cargar'}</span>
+                        {/* Licencia Upload */}
+                        <div className="border border-outline-variant p-md rounded bg-surface-container-low flex flex-col gap-sm">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h5 className="font-headline-sm text-headline-sm font-bold text-xs">Licencia Federativa (PDF)</h5>
+                              <span className="text-[10px] text-on-surface-variant">
+                                {docLicUploaded ? `✓ Archivo cargado (ID: ${licFileId.substring(0,8)}...)` : 'Falta cargar archivo'}
+                              </span>
+                            </div>
+                            <span className={`w-2.5 h-2.5 rounded-full ${docLicUploaded ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
                           </div>
-                          <button onClick={() => setDocLicUploaded(true)} className="bg-white border border-outline text-[10px] font-bold py-1 px-sm rounded">Subir Mock</button>
+                          <div className="flex items-center gap-sm mt-1">
+                            <input 
+                              type="file" 
+                              accept=".pdf,.png,.jpg,.jpeg" 
+                              onChange={(e) => handleFileUpload(e, 'lic')}
+                              disabled={isUploadingLic}
+                              className="text-[10px] block w-full text-on-surface-variant file:mr-md file:py-1 file:px-sm file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-primary file:text-white hover:file:bg-primary-container cursor-pointer"
+                            />
+                            {isUploadingLic && <span className="text-[9px] text-primary font-bold animate-pulse">Cargando...</span>}
+                          </div>
                         </div>
                       </div>
                       <div className="flex gap-sm">
@@ -1075,6 +1253,7 @@ function App() {
                         <th className="p-md">Resultado Examen</th>
                         <th className="p-md">Calificaciones</th>
                         <th className="p-md">Fecha Solicitud</th>
+                        <th className="p-md">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="font-body-md text-body-md divide-y divide-outline-variant">
@@ -1102,11 +1281,33 @@ function App() {
                               )}
                             </td>
                             <td className="p-md">{new Date(enroll.fecha_inscripcion || enroll.created_at).toLocaleDateString('es-ES')}</td>
+                            <td className="p-md">
+                              {enroll.resultado === 'apto' ? (
+                                <button
+                                  onClick={() => {
+                                    const exam = loadedExams.find(ex => ex.id === enroll.examen_id);
+                                    const gradeName = exam ? exam.grado_objetivo_id : '1dan';
+                                    generateCertificatePDF(
+                                      userProfile?.full_name || 'Aspirante',
+                                      gradeName,
+                                      enroll.fecha_inscripcion || new Date().toISOString(),
+                                      enroll.juez_id || 'default_juez'
+                                    );
+                                  }}
+                                  className="bg-primary hover:bg-primary-container text-white hover:text-primary font-bold text-[9px] px-sm py-[4px] rounded flex items-center gap-xs transition-colors cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[12px] font-bold">download</span>
+                                  Descargar Diploma
+                                </button>
+                              ) : (
+                                <span className="italic text-on-surface-variant text-[10px]">No disponible</span>
+                              )}
+                            </td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={5} className="p-md text-center">No tienes inscripciones guardadas aún.</td>
+                          <td colSpan={6} className="p-md text-center">No tienes inscripciones guardadas aún.</td>
                         </tr>
                       )}
                     </tbody>

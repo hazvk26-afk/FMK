@@ -66,6 +66,55 @@
   --radius-full: 0.75rem;
 }
 
+.dark {
+  --color-background: #120b0a;
+  --color-on-background: #f7ebe9;
+  
+  --color-surface: #1c1110;
+  --color-on-surface: #f7ebe9;
+  
+  --color-surface-container: #261715;
+  --color-surface-container-low: #201311;
+  --color-surface-container-lowest: #160c0b;
+  --color-surface-container-high: #2d1b19;
+  --color-surface-container-highest: #37211e;
+  
+  --color-primary: #ffb4ab;
+  --color-on-primary: #690005;
+  --color-primary-container: #93000a;
+  --color-on-primary-container: #ffdad6;
+  
+  --color-secondary: #ffdad6;
+  --color-on-secondary: #442a27;
+  --color-secondary-container: #5d3f3c;
+  --color-on-secondary-container: #ffdad6;
+  
+  --color-outline: #a08c8a;
+  --color-outline-variant: #534341;
+  
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+}
+
+/* Dark mode overrides for common components using white background classes */
+.dark .bg-white {
+  background-color: var(--color-surface) !important;
+  color: var(--color-on-surface) !important;
+}
+
+.dark input, 
+.dark select, 
+.dark textarea {
+  background-color: var(--color-surface-container-lowest) !important;
+  color: var(--color-on-surface) !important;
+  border-color: var(--color-outline-variant) !important;
+}
+
+.dark input::placeholder {
+  color: var(--color-outline) !important;
+}
+
+
 @utility font-headline-md {
   font-family: 'Inter', sans-serif;
 }
@@ -126,8 +175,9 @@
 
 @layer base {
   body {
-    background-color: #fff8f6;
-    color: #261816;
+    background-color: var(--color-background);
+    color: var(--color-on-background);
     font-family: 'Inter', sans-serif;
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
   }
 }

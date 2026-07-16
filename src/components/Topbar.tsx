@@ -8,6 +8,8 @@ interface TopbarProps {
   setRoleMode: (role: UserRole) => void;
   onLogout: () => void;
   userRole?: UserRole;
+  darkMode: boolean;
+  setDarkMode: (val: boolean) => void;
 }
 
 export const Topbar: React.FC<TopbarProps> = ({
@@ -17,6 +19,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   setRoleMode,
   onLogout,
   userRole,
+  darkMode,
+  setDarkMode,
 }) => {
   const sectionTitles: { [key: string]: string } = {
     dashboard: 'FMK - Inicio (Aspirante)',
@@ -106,6 +110,17 @@ export const Topbar: React.FC<TopbarProps> = ({
               Salir
             </button>
           )}
+
+          {/* Theme switcher */}
+          <button 
+            onClick={() => setDarkMode(!darkMode)}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors shrink-0 cursor-pointer"
+            title="Cambiar tema (Claro / Oscuro)"
+          >
+            <span className="material-symbols-outlined">
+              {darkMode ? 'light_mode' : 'dark_mode'}
+            </span>
+          </button>
 
           {/* Prototype notification icons */}
           <button className="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-colors shrink-0">

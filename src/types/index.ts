@@ -20,6 +20,8 @@ export interface Inscripcion {
   puntuacion_kata?: number;
   puntuacion_kumite?: number;
   juez_id?: string;
+  dni_file_id?: string;
+  lic_file_id?: string;
   created_at: string;
   profiles?: {
     full_name: string | null;
