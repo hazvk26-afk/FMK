@@ -386,6 +386,12 @@ function App() {
     setAuthMessage('Registrando...');
     setAuthType('');
     
+    if (password.length < 8) {
+      setAuthMessage('Error: La contraseña debe tener al menos 8 caracteres.');
+      setAuthType('error');
+      return;
+    }
+    
     try {
       const generatedId = ID.unique();
       await account.create(generatedId, email, password, fullName || email);
@@ -790,6 +796,11 @@ function App() {
     e.preventDefault();
     if (!adminUserEmail || !adminUserPass || !adminUserFullname) {
       alert('Rellena todos los campos.');
+      return;
+    }
+
+    if (adminUserPass.length < 8) {
+      alert('Error: La contraseña debe tener al menos 8 caracteres.');
       return;
     }
 
