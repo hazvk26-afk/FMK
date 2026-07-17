@@ -1535,19 +1535,33 @@ function App() {
                               </span>
                             </td>
                             <td className="p-md space-y-sm">
-                              <div className="flex items-center justify-between gap-sm bg-neutral-50 border p-sm rounded max-w-[280px]">
-                                <span className="font-medium text-[10px]">Copia DNI:</span>
-                                <div className="flex gap-xs">
-                                  <button onClick={() => handleValidateDoc(enroll.id, 'dni', true)} className={`text-[9px] font-bold px-[6px] py-[2px] rounded ${status.dni ? 'bg-green-600 text-white' : 'bg-white border border-outline'}`}>Válido</button>
-                                  <button onClick={() => handleValidateDoc(enroll.id, 'dni', false)} className={`text-[9px] font-bold px-[6px] py-[2px] rounded ${!status.dni ? 'bg-red-600 text-white' : 'bg-white border border-outline'}`}>Rechazar</button>
+                              <div className="flex flex-col gap-xs bg-neutral-50 border p-sm rounded max-w-[280px]">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium text-[10px]">Copia DNI:</span>
+                                  <div className="flex gap-xs">
+                                    <button onClick={() => handleValidateDoc(enroll.id, 'dni', true)} className={`text-[9px] font-bold px-[6px] py-[2px] rounded ${status.dni ? 'bg-green-600 text-white' : 'bg-white border border-outline'}`}>Válido</button>
+                                    <button onClick={() => handleValidateDoc(enroll.id, 'dni', false)} className={`text-[9px] font-bold px-[6px] py-[2px] rounded ${!status.dni ? 'bg-red-600 text-white' : 'bg-white border border-outline'}`}>Rechazar</button>
+                                  </div>
                                 </div>
+                                {enroll.dni_file_id && (
+                                  <span className="text-[9px] text-primary font-mono bg-white px-xs py-[2px] rounded border border-outline-variant inline-block mt-xs">
+                                    📄 {enroll.dni_file_id}
+                                  </span>
+                                )}
                               </div>
-                              <div className="flex items-center justify-between gap-sm bg-neutral-50 border p-sm rounded max-w-[280px]">
-                                <span className="font-medium text-[10px]">Licencia:</span>
-                                <div className="flex gap-xs">
-                                  <button onClick={() => handleValidateDoc(enroll.id, 'lic', true)} className={`text-[9px] font-bold px-[6px] py-[2px] rounded ${status.lic ? 'bg-green-600 text-white' : 'bg-white border border-outline'}`}>Válido</button>
-                                  <button onClick={() => handleValidateDoc(enroll.id, 'lic', false)} className={`text-[9px] font-bold px-[6px] py-[2px] rounded ${!status.lic ? 'bg-red-600 text-white' : 'bg-white border border-outline'}`}>Rechazar</button>
+                              <div className="flex flex-col gap-xs bg-neutral-50 border p-sm rounded max-w-[280px]">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium text-[10px]">Licencia:</span>
+                                  <div className="flex gap-xs">
+                                    <button onClick={() => handleValidateDoc(enroll.id, 'lic', true)} className={`text-[9px] font-bold px-[6px] py-[2px] rounded ${status.lic ? 'bg-green-600 text-white' : 'bg-white border border-outline'}`}>Válido</button>
+                                    <button onClick={() => handleValidateDoc(enroll.id, 'lic', false)} className={`text-[9px] font-bold px-[6px] py-[2px] rounded ${!status.lic ? 'bg-red-600 text-white' : 'bg-white border border-outline'}`}>Rechazar</button>
+                                  </div>
                                 </div>
+                                {enroll.lic_file_id && (
+                                  <span className="text-[9px] text-primary font-mono bg-white px-xs py-[2px] rounded border border-outline-variant inline-block mt-xs">
+                                    📄 {enroll.lic_file_id}
+                                  </span>
+                                )}
                               </div>
                             </td>
                             <td className="p-md space-y-xs">
