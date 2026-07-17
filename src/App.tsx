@@ -102,16 +102,7 @@ function App() {
   const [roleMode, setRoleMode] = useState<UserRole>('aspirante');
   const [sessionUser, setSessionUser] = useState<any | null>(null);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
-  const [darkMode, setDarkMode] = useState<boolean>(false);
 
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
-  
   // Auth Form State
   const [fullName, setFullName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
@@ -1011,8 +1002,6 @@ function App() {
           setRoleMode={setRoleMode}
           onLogout={handleLogout}
           userRole={userProfile?.role}
-          darkMode={darkMode}
-          setDarkMode={setDarkMode}
         />
 
         {/* Dynamic section display */}
@@ -1397,14 +1386,27 @@ function App() {
                           </td>
                           <td className="p-md">{new Date(p.created_at).toLocaleDateString('es-ES')}</td>
                           <td className="p-md">
-                            {p.estado === 'pendiente' && (
-                              <button 
-                                onClick={() => handlePayFee(p.id)}
-                                className="bg-primary text-white text-[10px] font-bold px-sm py-1 rounded hover:bg-primary-container"
-                              >
-                                Pagar (Simular)
-                              </button>
-                            )}
+                            {p.estado === 'pendiente' && (() => {
+                              const enroll = loadedEnrollments.find(e => e.id === p.inscripcion_id);
+                              const isPendingValidation = enroll && enroll.estado === 'pendiente_revision';
+                              
+                              if (isPendingValidation) {
+                                return (
+                                  <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-sm py-[4px] rounded font-semibold inline-block">
+                                    Esperando validación de documentos por Administrador
+                                  </span>
+                                );
+                              }
+                              
+                              return (
+                                <button 
+                                  onClick={() => handlePayFee(p.id)}
+                                  className="bg-primary text-white text-[10px] font-bold px-sm py-1 rounded hover:bg-primary-container cursor-pointer"
+                                >
+                                  Pagar (Simular)
+                                </button>
+                              );
+                            })()}
                           </td>
                         </tr>
                       ))
